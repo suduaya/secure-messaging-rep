@@ -160,6 +160,13 @@ class ServerRegistry:
                 userList.append(self.users[k].id)
         return userList
 
+    def getId(self, uuid):
+        id = 0
+        for k in self.users.keys():
+            if self.users[k].description["uuid"] == uuid:
+                id = self.users[k].id
+
+        return id
 
     def userAllMessages(self, uid):
         return self.userMessages(self.userMessageBox(uid), "_?[0-9]+_[0-9]+")
@@ -210,13 +217,13 @@ class ServerRegistry:
 
             result = [src + "_" + nr]
             path = os.path.join(self.userReceiptBox(src), dst + "_")
-            self.saveOnFile(path + nr, receipt)
+            self.saveOnFile(path + src, receipt)
         except:
             logging.exception(
-                "Cannot create message or receipt file " + path + nr)
+                "Cannot create message or receipt file " + path + src)
             return ["", ""]
 
-        result.append(dst + "_" + nr)
+        result.append(dst + "_" + src)
         return result
 
     def readMsgFile(self, uid, msg):

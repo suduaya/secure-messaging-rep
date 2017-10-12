@@ -62,6 +62,7 @@ class ServerActions:
             return
 
         uuid = data['uuid']
+        
         if not isinstance(uuid, int):
             log(logging.ERROR, "No valid \"uuid\" field in \"create\" message: " +
                 json.dumps(data))
@@ -95,7 +96,7 @@ class ServerActions:
 
         userList = self.registry.listUsers(user)
 
-        client.sendResult({"result": userList})
+        client.sendResult({"resultList": userList})
 
     def processNew(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
@@ -110,15 +111,21 @@ class ServerActions:
             client.sendResult({"error": "wrong message format"})
             return
 
+
+
         client.sendResult(
-            {"result": self.registry.userNewMessages(user)})
+            {"resultNew": self.registry.userNewMessages(user)})
 
     def processAll(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
 
         user = -1
-        if 'id' in data.keys():
-            user = int(data['id'])
+
+        # recebe o uuid, vai buscar o id
+        if 'uuid' in data.keys():
+            user = int(data['uuid'])
+     
+        user = self.registry.getId(user)
 
         if user < 0:
             log(logging.ERROR,
@@ -126,7 +133,7 @@ class ServerActions:
             client.sendResult({"error": "wrong message format"})
             return
 
-        client.sendResult({"result": [self.registry.userAllMessages(user), self.registry.userSentMessages(user)]})
+        client.sendResult({"resultAll": [self.registry.userAllMessages(user), self.registry.userSentMessages(user)]})
 
     def processSend(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
@@ -138,6 +145,7 @@ class ServerActions:
 
         srcId = int(data['src'])
         dstId = int(data['dst'])
+        dstId = self.registry.getId(dstId)
         msg = str(data['msg'])
         copy = str(data['copy'])
 

@@ -1,9 +1,9 @@
-
 import select, socket, sys
 import json
 import time, base64
 import random
 import logging, socket, datetime
+import os
 
 
 
@@ -52,11 +52,11 @@ class Client:
         logging.info(bcolors.OKBLUE+"Client listening on"+bcolors.ENDC+"%s", self.ss.getsockname())
         self.myConnections = {}
         self.inputs = []        # Sockets from which we expect to read
-        self.uuid = 54
+        self.uuid = 999999999
+        self.id = -1
         self.bufin = ""
         self.bufout = ""
         self.usersLists = []
-        self.serverAssignedId = None
         self.tasks = []     # request ordenados
 
     def parseReqs(self, data):
@@ -92,12 +92,26 @@ class Client:
             if not isinstance(req, dict):
                 return
 
-            if 'result' in req:
+            if 'resultAll' in req:
+                return
+
+            if 'resultNew' in req:
+                return
+
+            if 'resultList' in req:
+                aux = []
+                os.system('clear')
+                print bcolors.OKGREEN + bcolors.BOLD + "Lista de MessageBoxes (users): " + bcolors.ENDC
+                for x in req['resultList']:
+                    aux.append(x['uuid'])
+                    print '  -> '+str(x['uuid'])
+                print "\n"
+                print "/r  (go back to main menu)"
+                self.usersLists = aux
                 return
 
             if 'resultCreate' in req:
-                self.serverAssignedId =  req['resultCreate']
-                print self.serverAssignedId
+                self.id =  req['resultCreate']
                 return
 
             if 'type' not in req:
@@ -124,12 +138,23 @@ class Client:
             self.createUserMsgBox()
             return
 
+        if fields[0] == 'all':
+            self.listAllMessages()
+            return
+        if fields[0] == 'send':
+            self.sendMessage()
+            return
+        if fields[0] == '/r':
+            os.system('clear')
+            self.show_menu()
+            return
         else:
             logging.error("Invalid input")
             return
 
     # Processamento
     def loop(self):
+        os.system('clear')
         self.show_menu()
         while 1:
             socks = select.select([self.ss, sys.stdin, ], [], [])[0]
@@ -164,6 +189,14 @@ class Client:
                 }
         self.send(data)
 
+    # Listar todas as mensagens de um user
+    def listAllMessages(self):
+        data = {
+                "type": "all",
+                "uuid": self.uuid,
+                }
+        self.send(data)
+
     # Listar User Message Box
     def listUserMsgBox(self):
         data = {
@@ -173,11 +206,11 @@ class Client:
 
     # Listar User Message Box
     def sendMessage(self):
-    	idd= 2
+    	idd= 11
     	msg= 'hello'
         data = {
                 "type": "send",
-                "src": self.uuid,
+                "src": self.id,
                 "dst": idd,
                 "msg": msg,
                 "copy": msg,
@@ -186,7 +219,7 @@ class Client:
 
     # enviar socket 
     def send(self, dict_, client=None):
-        if dict_['type'] == 'create' or dict_['type'] == 'list' or dict_['type'] == 'send' or dict_['type'] == 'getMyId':
+        if dict_['type'] == 'create' or dict_['type'] == 'list' or dict_['type'] == 'send' or dict_['type'] == 'getMyId' or dict_['type'] == 'all' or dict_['type'] == 'new':
             try:
                 self.ss.send((json.dumps(dict_))+TERMINATOR)
             except Exception:
@@ -209,14 +242,8 @@ class Client:
     # Menu inicial
     def show_menu(self):
         print bcolors.HEADER + bcolors.BOLD + "Secure Messaging Repository System\n" + bcolors.ENDC
-        print bcolors.WARNING + "1- " + bcolors.ENDC + "Create User Message Box\n" + \
-              bcolors.WARNING + "2- " + bcolors.ENDC + "List User Message Box\n" + \
-              bcolors.WARNING + "3- " + bcolors.ENDC + "List User Receipt Box\n" + \
-              bcolors.WARNING + "4- " + bcolors.ENDC + "List All Messages Reveived by a User\n" + \
-              bcolors.WARNING + "5- " + bcolors.ENDC + "Send Message to a User\n" + \
-              bcolors.WARNING + "6- " + bcolors.ENDC + "Receive a message from a User box\n" + \
-              bcolors.WARNING + "7- " + bcolors.ENDC + "Send Receipt for a Message\n" + \
-              bcolors.WARNING + "8- " + bcolors.ENDC + "List Messages sent and their receipts\n"
+        print bcolors.WARNING + "1- " + bcolors.ENDC + "Create a User Message Box\n" + \
+              bcolors.WARNING + "2- " + bcolors.ENDC + "List Users' Message Box\n"
         return
 
 
