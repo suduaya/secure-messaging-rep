@@ -97,6 +97,14 @@ class Client:
                 return
 
             if 'resultAll' in req:
+                os.system('clear')
+                print bcolors.OKGREEN + bcolors.BOLD + "        Mensagens (Enviadas/Recebidas): " + bcolors.ENDC
+                print bcolors.WARNING + "Enviadas: " + bcolors.ENDC
+                print req['resultAll'][0]
+                print bcolors.WARNING + "Recebidas: " + bcolors.ENDC
+                print req['resultAll'][1]
+                print "\n"
+                print "/r  (go back to main menu)"
                 return
 
             if 'resultNew' in req:
@@ -105,7 +113,7 @@ class Client:
             if 'resultList' in req:
                 aux = []
                 os.system('clear')
-                print bcolors.OKGREEN + bcolors.BOLD + "Lista de MessageBoxes (users): " + bcolors.ENDC
+                print bcolors.OKGREEN + bcolors.BOLD + "        Lista de MessageBoxes (users): " + bcolors.ENDC
                 for x in req['resultList']:
                     aux.append(x['uuid'])
                     print '  -> '+str(x['uuid'])
@@ -135,18 +143,18 @@ class Client:
         fields = input.split()
 
 
-        if fields[0] == 'list':
+        if fields[0] == '/list':
             self.listUserMsgBox()
             return
-        if fields[0] == 'create':
+        if fields[0] == '/create':
             self.createUserMsgBox()
             return
 
-        if fields[0] == 'all':
+        if fields[0] == '/all':
             self.listAllMessages()
             return
-        if fields[0] == 'send':
-            self.sendMessage()
+        if fields[0] == '/send':
+            self.sendMessage(int(fields[1]), str(fields[2]))
             return
         if fields[0] == '/r':
             os.system('clear')
@@ -209,14 +217,13 @@ class Client:
         self.send(data)
 
     # Listar User Message Box
-    def sendMessage(self):
-    	idd= 20
+    def sendMessage(self, dst, txt):
     	msg= 'hello'
         data = {
                 "type": "send",
                 "src": 1,
-                "dst": idd,
-                "msg": msg,
+                "dst": dst,
+                "msg": txt,
                 "copy": msg,
                 }
         self.send(data)
@@ -245,9 +252,11 @@ class Client:
     
     # Menu inicial
     def show_menu(self):
-        print bcolors.HEADER + bcolors.BOLD + "Secure Messaging Repository System\n" + bcolors.ENDC
-        print bcolors.WARNING + "1- " + bcolors.ENDC + "Create a User Message Box\n" + \
-              bcolors.WARNING + "2- " + bcolors.ENDC + "List Users' Message Box\n"
+        print bcolors.HEADER + bcolors.BOLD + "     Secure Messaging Repository System\n" + bcolors.ENDC
+        print bcolors.WARNING + "(/create)                 " + bcolors.ENDC + "Create a User Message Box \n" + \
+              bcolors.WARNING + "(/list)                   " + bcolors.ENDC + "List All Users\n" + \
+              bcolors.WARNING + "(/all)                    " + bcolors.ENDC + "List All Messages\n" + \
+              bcolors.WARNING + "(/send <user> <text>)     " + bcolors.ENDC + "Send a Message\n"
         return
 
 
