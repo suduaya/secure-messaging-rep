@@ -165,7 +165,7 @@ class ServerActions:
 
         response = self.registry.sendMessage(srcId, dstId, msg, copy)
 
-        client.sendResult({"result": response})
+        client.sendResult({"resultSend": response})
 
     def processRecv(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))

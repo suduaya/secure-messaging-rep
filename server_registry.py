@@ -199,7 +199,9 @@ class ServerRegistry:
     def newFile(self, basename):
         i = 1
         while True:
-            path = os.path.join(basename, str(i))
+            #path = os.path.join(basename, str(i))
+            path = basename + str(i)
+            print path
             if not os.path.exists(path):
                 return str(i)
 
@@ -212,18 +214,20 @@ class ServerRegistry:
 
         try:
             path = os.path.join(self.userMessageBox(dst), src + "_")
+            
             nr = self.newFile(path)
+            print nr
             self.saveOnFile(path + nr, msg)
 
             result = [src + "_" + nr]
             path = os.path.join(self.userReceiptBox(src), dst + "_")
-            self.saveOnFile(path + src, receipt)
+            self.saveOnFile(path + nr, receipt)
         except:
             logging.exception(
-                "Cannot create message or receipt file " + path + src)
+                "Cannot create message or receipt file " + path + nr)
             return ["", ""]
 
-        result.append(dst + "_" + src)
+        result.append(dst + "_" + nr)
         return result
 
     def readMsgFile(self, uid, msg):

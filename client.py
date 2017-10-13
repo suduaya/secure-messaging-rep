@@ -52,7 +52,7 @@ class Client:
         logging.info(bcolors.OKBLUE+"Client listening on"+bcolors.ENDC+"%s", self.ss.getsockname())
         self.myConnections = {}
         self.inputs = []        # Sockets from which we expect to read
-        self.uuid = 999999999
+        self.uuid = 10
         self.id = -1
         self.bufin = ""
         self.bufout = ""
@@ -90,6 +90,10 @@ class Client:
                 return
 
             if not isinstance(req, dict):
+                return
+
+            if 'resultSend' in req:
+                print req['resultSend']
                 return
 
             if 'resultAll' in req:
@@ -206,11 +210,11 @@ class Client:
 
     # Listar User Message Box
     def sendMessage(self):
-    	idd= 11
+    	idd= 20
     	msg= 'hello'
         data = {
                 "type": "send",
-                "src": self.id,
+                "src": 1,
                 "dst": idd,
                 "msg": msg,
                 "copy": msg,
