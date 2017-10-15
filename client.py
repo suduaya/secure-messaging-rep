@@ -53,7 +53,7 @@ class Client:
         self.myConnections = {}
         self.inputs = []        # Sockets from which we expect to read
         self.uuid = 10
-        self.id = -1
+        self.id = 1
         self.bufin = ""
         self.bufout = ""
         self.usersLists = []
@@ -99,9 +99,10 @@ class Client:
             if 'resultAll' in req:
                 os.system('clear')
                 print bcolors.OKGREEN + bcolors.BOLD + "        Mensagens (Enviadas/Recebidas): " + bcolors.ENDC
-                print bcolors.WARNING + "Enviadas: " + bcolors.ENDC
+                print bcolors.WARNING + str(len(req['resultAll'][0])) + " Mensagens Recebidas: " + bcolors.ENDC
                 print req['resultAll'][0]
-                print bcolors.WARNING + "Recebidas: " + bcolors.ENDC
+                print '\n'
+                print bcolors.WARNING + str(len(req['resultAll'][1]))  + " Mensagens Enviadas: " + bcolors.ENDC
                 print req['resultAll'][1]
                 print "\n"
                 print "/r  (go back to main menu)"
@@ -205,7 +206,7 @@ class Client:
     def listAllMessages(self):
         data = {
                 "type": "all",
-                "uuid": self.uuid,
+                "id": self.id,
                 }
         self.send(data)
 
@@ -221,7 +222,7 @@ class Client:
     	msg= 'hello'
         data = {
                 "type": "send",
-                "src": 1,
+                "src": self.id,
                 "dst": dst,
                 "msg": txt,
                 "copy": msg,

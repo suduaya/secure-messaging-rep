@@ -145,9 +145,17 @@ class ServerRegistry:
 
         userList = []
         for k in self.users.keys():
-            userList.append(self.users[k].description)
+            userList.append({'uuid': k}) # retorna id, not uuid
+            #userList.append(self.users[k].description)
 
         return userList
+
+    def getMyUUID(self,id):
+        uuid = 0
+        for k in self.user.keys():
+            if k == id:
+                uuid = self.users[k].description["uuid"]
+        return uuid
 
     def getMyId(self, data):
         uuid = data['id']

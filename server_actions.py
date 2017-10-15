@@ -122,10 +122,8 @@ class ServerActions:
         user = -1
 
         # recebe o uuid, vai buscar o id
-        if 'uuid' in data.keys():
-            user = int(data['uuid'])
-     
-        user = self.registry.getId(user)
+        if 'id' in data.keys():
+            user = int(data['id'])
 
         if user < 0:
             log(logging.ERROR,
@@ -145,7 +143,6 @@ class ServerActions:
 
         srcId = int(data['src'])
         dstId = int(data['dst'])
-        dstId = self.registry.getId(dstId)
         msg = str(data['msg'])
         copy = str(data['copy'])
 
