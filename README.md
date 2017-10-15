@@ -8,3 +8,8 @@ eavesdropped, modified or injected by a third party or the server;
 • Message delivery confirmation: message readers should be able to prove that they have had access to their contents (i.e. have read them);
 
 • Identity preservation: There is a direct association between one user and one Portuguese Citizen, and vice-versa, using the Portuguese Citizen Card.'
+
+
+
+
+Made by [André Rodrigues](https://github.com/suduaya) and [Cristiano Vagos](https://github.com/cristianovagos)
