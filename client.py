@@ -98,14 +98,30 @@ class Client:
 
             if 'resultAll' in req:
                 os.system('clear')
+                a= []
+                for x in req['resultAll'][0]:
+                    aux = x.split('_')
+                    sender = aux[0]
+                    seq = int(aux[1])
+                    if sender != '':    # retira msgs lidas
+                        a.append(x)
+                lenMsg = len(a)
+                a = list(set(a))        # mensagens recebidas
+
+
                 print bcolors.OKGREEN + bcolors.BOLD + "        Mensagens (Enviadas/Recebidas): " + bcolors.ENDC
-                print bcolors.WARNING + str(len(req['resultAll'][0])) + " Mensagens Recebidas: " + bcolors.ENDC
-                print req['resultAll'][0]
+                print bcolors.WARNING + str(lenMsg) + " Mensagens Recebidas: " + bcolors.ENDC
+                for x in a:
+                    details = x.split('_')
+                    print "Message number " + str(details[1]) + " from user " + str(details[0])
                 print '\n'
                 print bcolors.WARNING + str(len(req['resultAll'][1]))  + " Mensagens Enviadas: " + bcolors.ENDC
                 print req['resultAll'][1]
+
+
                 print "\n"
-                print "/r  (go back to main menu)"
+                print "/rcv <msg_number> <src_user> (Read message)"
+                print "/r                           (go back to main menu)"
                 return
 
             if 'resultNew' in req:
@@ -169,7 +185,7 @@ class Client:
             self.sendMessage(int(fields[1]), str(fields[2]))
             return
         if fields[0] == '/recv':
-            self.recvMessage()
+            self.recvMessage(str(fields[1]), str(fields[2]))
             return
         if fields[0] == '/r':
             os.system('clear')
@@ -216,11 +232,11 @@ class Client:
                 }
         self.send(data)
 
-    def recvMessage(self):
+    def recvMessage(self, msgNr, src):
         data = {
                 "type": "recv",
                 "id"  : self.id,
-                "msg" : '1_2',
+                "msg" : str(src)+'_'+str(msgNr),
                 }
         self.send(data)
 
