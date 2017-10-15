@@ -52,8 +52,8 @@ class Client:
         logging.info(bcolors.OKBLUE+"Client listening on"+bcolors.ENDC+"%s", self.ss.getsockname())
         self.myConnections = {}
         self.inputs = []        # Sockets from which we expect to read
-        self.uuid = 10
-        self.id = 1
+        self.uuid = 20
+        self.id = 2
         self.bufin = ""
         self.bufout = ""
         self.usersLists = []
@@ -111,6 +111,17 @@ class Client:
             if 'resultNew' in req:
                 return
 
+            if 'resultRecv' in req:
+                os.system('clear')
+                source = req['resultRecv'][0]
+                msg = req['resultRecv'][1]
+                print bcolors.OKGREEN + bcolors.BOLD + "Source: " + bcolors.ENDC + str(source) 
+                print bcolors.WARNING + bcolors.BOLD + "Message: " +bcolors.ENDC
+                print msg
+                print "\n"
+                print "/r  (go back to main menu)"
+                return               
+
             if 'resultList' in req:
                 aux = []
                 os.system('clear')
@@ -157,6 +168,9 @@ class Client:
         if fields[0] == '/send':
             self.sendMessage(int(fields[1]), str(fields[2]))
             return
+        if fields[0] == '/recv':
+            self.recvMessage()
+            return
         if fields[0] == '/r':
             os.system('clear')
             self.show_menu()
@@ -202,6 +216,14 @@ class Client:
                 }
         self.send(data)
 
+    def recvMessage(self):
+        data = {
+                "type": "recv",
+                "id"  : self.id,
+                "msg" : '1_2',
+                }
+        self.send(data)
+
     # Listar todas as mensagens de um user
     def listAllMessages(self):
         data = {
@@ -231,7 +253,7 @@ class Client:
 
     # enviar socket 
     def send(self, dict_, client=None):
-        if dict_['type'] == 'create' or dict_['type'] == 'list' or dict_['type'] == 'send' or dict_['type'] == 'getMyId' or dict_['type'] == 'all' or dict_['type'] == 'new':
+        if dict_['type'] == 'create' or dict_['type'] == 'list' or dict_['type'] == 'send' or dict_['type'] == 'getMyId' or dict_['type'] == 'all' or dict_['type'] == 'new' or dict_['type'] == 'recv':
             try:
                 self.ss.send((json.dumps(dict_))+TERMINATOR)
             except Exception:
