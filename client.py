@@ -52,8 +52,8 @@ class Client:
         logging.info(bcolors.OKBLUE+"Client listening on"+bcolors.ENDC+"%s", self.ss.getsockname())
         self.myConnections = {}
         self.inputs = []        # Sockets from which we expect to read
-        self.uuid = 20
-        self.id = 2
+        self.uuid = 10
+        self.id = 1
         self.bufin = ""
         self.bufout = ""
         self.usersLists = []
@@ -108,6 +108,15 @@ class Client:
                 lenMsg = len(a)
                 a = list(set(a))        # mensagens recebidas
 
+                b= []
+                for x in req['resultAll'][1]:
+                    aux = x.split('_')
+                    sender = aux[0]
+                    seq = int(aux[1])
+                    if sender != '':    # retira msgs lidas
+                        b.append(x)
+                lenMsg2 = len(b)
+                b = list(set(b))        # mensagens recebidas
 
                 print bcolors.OKGREEN + bcolors.BOLD + "        Mensagens (Enviadas/Recebidas): " + bcolors.ENDC
                 print bcolors.WARNING + str(lenMsg) + " Mensagens Recebidas: " + bcolors.ENDC
@@ -115,13 +124,14 @@ class Client:
                     details = x.split('_')
                     print "Message number " + str(details[1]) + " from user " + str(details[0])
                 print '\n'
-                print bcolors.WARNING + str(len(req['resultAll'][1]))  + " Mensagens Enviadas: " + bcolors.ENDC
-                print req['resultAll'][1]
-
-
+                print bcolors.WARNING + str(lenMsg2)  + " Mensagens Enviadas: " + bcolors.ENDC
+                for x in b:
+                    details2 = x.split('_')
+                    print "Message number " + str(details2[1]) + " sent to user " + str(details2[0])
                 print "\n"
-                print "/rcv <msg_number> <src_user> (Read message)"
-                print "/r                           (go back to main menu)"
+                print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
+                print bcolors.WARNING +"(/recv <msg_number> <src_user>)" + bcolors.ENDC + " Read message"
+                print bcolors.WARNING +"(<)                            " + bcolors.ENDC + " go back to main menu"
                 return
 
             if 'resultNew' in req:
@@ -135,7 +145,8 @@ class Client:
                 print bcolors.WARNING + bcolors.BOLD + "Message: " +bcolors.ENDC
                 print msg
                 print "\n"
-                print "/r  (go back to main menu)"
+                print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
+                print bcolors.WARNING +"(<)    " + bcolors.ENDC + " go back to main menu"
                 return               
 
             if 'resultList' in req:
@@ -146,7 +157,8 @@ class Client:
                     aux.append(x['uuid'])
                     print '  -> '+str(x['uuid'])
                 print "\n"
-                print "/r  (go back to main menu)"
+                print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
+                print bcolors.WARNING +"(<)    " + bcolors.ENDC + " go back to main menu"
                 self.usersLists = aux
                 return
 
@@ -187,7 +199,7 @@ class Client:
         if fields[0] == '/recv':
             self.recvMessage(str(fields[1]), str(fields[2]))
             return
-        if fields[0] == '/r':
+        if fields[0] == '<':
             os.system('clear')
             self.show_menu()
             return
@@ -292,7 +304,7 @@ class Client:
     # Menu inicial
     def show_menu(self):
         print bcolors.HEADER + bcolors.BOLD + "     Secure Messaging Repository System\n" + bcolors.ENDC
-        print bcolors.WARNING + "(/create)                 " + bcolors.ENDC + "Create a User Message Box \n" + \
+        print bcolors.WARNING + "(/create)                 " + bcolors.ENDC + "Create a User Message Box (dup)\n" + \
               bcolors.WARNING + "(/list)                   " + bcolors.ENDC + "List All Users\n" + \
               bcolors.WARNING + "(/all)                    " + bcolors.ENDC + "List All Messages\n" + \
               bcolors.WARNING + "(/send <user> <text>)     " + bcolors.ENDC + "Send a Message\n"
