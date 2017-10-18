@@ -145,10 +145,21 @@ class ServerRegistry:
 
         userList = []
         for k in self.users.keys():
-            userList.append({'uuid': k}) # retorna id, not uuid
+            userList.append({
+                             'id': k,
+                             'description' : self.users[k].description 
+                             }) # retorna id, not uuid
             #userList.append(self.users[k].description)
 
         return userList
+
+    def userDirExists(self,uuid):
+
+        for key in self.users.keys():
+            description= self.users[key]['description']
+            if description['uuid']==uuid:
+                return True
+        return False
 
     def getMyUUID(self,id):
         uuid = 0

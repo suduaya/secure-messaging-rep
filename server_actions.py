@@ -74,7 +74,13 @@ class ServerActions:
             client.sendResult({"error": "uuid already exists"})
             return
 
+        if self.registry.userDirExists(uuid):
+            log(logging.ERROR, "User already exists: " + json.dumps(data))
+            client.sendResult({"error": "uuid already exists"})
+            return
+
         me = self.registry.addUser(data)
+        cliend.id = me.id
         client.sendResult({"resultCreate": me.id})
 
     def processGetMyID(self, data, client):

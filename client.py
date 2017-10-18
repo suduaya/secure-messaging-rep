@@ -52,15 +52,15 @@ class Client:
         logging.info(bcolors.OKBLUE+"Client listening on"+bcolors.ENDC+"%s", self.ss.getsockname())
         self.myConnections = {}
         self.inputs = []        # Sockets from which we expect to read
-        self.uuid = 10
-        self.id = 1
+        self.uuid = 20
+        self.id = 2
         self.bufin = ""
         self.bufout = ""
         self.usersLists = []
         self.tasks = []     # request ordenados
+        self.mail = {}
 
     def parseReqs(self, data):
-        print "Parsing"
         """Parse a chunk of data from this client.
         Return any complete requests in a list.
         Leave incomplete requests in the buffer.
@@ -78,9 +78,15 @@ class Client:
         return reqs[:-1]
 
     def handleRequest(self, request):
-        print "handling"
-
-
+        """
+        Faz o devido handle dos requests do servidor, 
+        tratando dos dados enviados e processando 
+        de forma logica
+        """
+        self.inbox=[]
+        self.newMails=[]
+        self.mailBox=[]
+        self.outbox=[]
         try:
             logging.info("HANDLING message from server: %r", repr(request))
 
@@ -97,41 +103,56 @@ class Client:
                 return
 
             if 'resultAll' in req:
+                i=0
                 os.system('clear')
-                a= []
+
                 for x in req['resultAll'][0]:
-                    aux = x.split('_')
-                    sender = aux[0]
-                    seq = int(aux[1])
-                    if sender != '':    # retira msgs lidas
-                        a.append(x)
-                lenMsg = len(a)
-                a = list(set(a))        # mensagens recebidas
+                    if x[0] == '_':
+                        if x not in self.inbox:
+                            self.inbox.append(x)
+                    else:
+                        if x not in self.newMails:
+                            self.newMails.append(x)
 
-                b= []
-                for x in req['resultAll'][1]:
-                    aux = x.split('_')
-                    sender = aux[0]
-                    seq = int(aux[1])
-                    if sender != '':    # retira msgs lidas
-                        b.append(x)
-                lenMsg2 = len(b)
-                b = list(set(b))        # mensagens recebidas
+                for y in req['resultAll'][1]:
+                    if y not in self.outbox:
+                        self.outbox.append(y)
 
+
+                self.mailBox = self.newMails + self.inbox   # ordered
+
+                #print self.mailBox
                 print bcolors.OKGREEN + bcolors.BOLD + "        Mensagens (Enviadas/Recebidas): " + bcolors.ENDC
-                print bcolors.WARNING + str(lenMsg) + " Mensagens Recebidas: " + bcolors.ENDC
-                for x in a:
-                    details = x.split('_')
-                    print "Message number " + str(details[1]) + " from user " + str(details[0])
-                print '\n'
-                print bcolors.WARNING + str(lenMsg2)  + " Mensagens Enviadas: " + bcolors.ENDC
-                for x in b:
-                    details2 = x.split('_')
-                    print "Message number " + str(details2[1]) + " sent to user " + str(details2[0])
+                print bcolors.WARNING + str(len(self.mailBox)) + " Mensagens Recebidas: " + bcolors.ENDC
+                if len(self.mailBox) == 0:
+                        print "Voce nao tem mensagens disponiveis\n"
+                for mail in self.mailBox:
+                    if mail[0] == '_':
+                        i = i + 1
+                        aux = mail.split('_')
+                        print str(i) + "- Message " +  str(aux[2]) + " from user " +  str(aux[1])
+                    else:
+                        i = i + 1
+                        aux = mail.split('_')
+                        print str(i) + "- Message " +  str(aux[1]) + " from user " +  str(aux[0]) + bcolors.FAIL +" (NEW!)"+bcolors.ENDC
+
+                print "\n"
+                print bcolors.WARNING + str(len(self.outbox))  + " Mensagens Enviadas: " + bcolors.ENDC
+                if len(self.outbox) == 0:
+                        print "Voce nao tem mensagens enviadas\n"
+                for mail in self.outbox:
+                    aux = mail.split('_')
+                    i = i + 1
+                    print str(i) +"- Message " +  str(aux[1]) + " sent to user " +  str(aux[0])
+
                 print "\n"
                 print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
                 print bcolors.WARNING +"(/recv <msg_number> <src_user>)" + bcolors.ENDC + " Read message"
                 print bcolors.WARNING +"(<)                            " + bcolors.ENDC + " go back to main menu"
+         
+                self.mail = dict(zip(range(1,len(self.mailBox)+1), self.mailBox))
+
+                #print self.mail
                 return
 
             if 'resultNew' in req:
@@ -152,10 +173,12 @@ class Client:
             if 'resultList' in req:
                 aux = []
                 os.system('clear')
-                print bcolors.OKGREEN + bcolors.BOLD + "        Lista de MessageBoxes (users): " + bcolors.ENDC
+                print bcolors.OKGREEN + bcolors.BOLD + "        Lista de MessageBoxes (users): \n" + bcolors.ENDC
+                print bcolors.WARNING+"Hello Mr." + str(self.uuid) +"! This is a list of users which you can communicate!"+bcolors.ENDC+"\n"
                 for x in req['resultList']:
-                    aux.append(x['uuid'])
-                    print '  -> '+str(x['uuid'])
+                    aux.append(x['id'])
+                    if int(x['id'] != self.id):
+                        print '         -> id: '+bcolors.WARNING+str(x['id'])+bcolors.ENDC +"      (I'm Mr." +bcolors.WARNING + str(x['description']['uuid']) + bcolors.ENDC+ " !)"
                 print "\n"
                 print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
                 print bcolors.WARNING +"(<)    " + bcolors.ENDC + " go back to main menu"
@@ -180,6 +203,11 @@ class Client:
             logging.exception("Could not handle request")
 
     def handleInput(self, input):
+        """
+        Faz o handle do input(teclado)
+        e redireciona para a funcao correcta
+        de modo a fazer um pedido correcto ao servidor
+        """
         fields = input.split()
 
 
@@ -189,7 +217,6 @@ class Client:
         if fields[0] == '/create':
             self.createUserMsgBox()
             return
-
         if fields[0] == '/all':
             self.listAllMessages()
             return
@@ -197,7 +224,7 @@ class Client:
             self.sendMessage(int(fields[1]), str(fields[2]))
             return
         if fields[0] == '/recv':
-            self.recvMessage(str(fields[1]), str(fields[2]))
+            self.recvMessage(int(fields[1]))
             return
         if fields[0] == '<':
             os.system('clear')
@@ -207,8 +234,11 @@ class Client:
             logging.error("Invalid input")
             return
 
-    # Processamento
     def loop(self):
+        """
+        Ciclo de vida, handle de requests do servidor
+        e pedidos do cliente ao servidor, em loop
+        """
         os.system('clear')
         self.show_menu()
         while 1:
@@ -244,11 +274,12 @@ class Client:
                 }
         self.send(data)
 
-    def recvMessage(self, msgNr, src):
+    # Leitura de uma mensagem
+    def recvMessage(self, msgNr):
         data = {
                 "type": "recv",
                 "id"  : self.id,
-                "msg" : str(src)+'_'+str(msgNr),
+                "msg" : self.mail[msgNr],
                 }
         self.send(data)
 
@@ -269,19 +300,20 @@ class Client:
 
     # Listar User Message Box
     def sendMessage(self, dst, txt):
-    	msg= 'hello'
         data = {
                 "type": "send",
                 "src": self.id,
                 "dst": dst,
                 "msg": txt,
-                "copy": msg,
+                "copy": txt,
                 }
         self.send(data)
 
-    # enviar socket 
+    # Verificacao do tipo de mensagem e envio (socket.send)
     def send(self, dict_, client=None):
-        if dict_['type'] == 'create' or dict_['type'] == 'list' or dict_['type'] == 'send' or dict_['type'] == 'getMyId' or dict_['type'] == 'all' or dict_['type'] == 'new' or dict_['type'] == 'recv':
+        if dict_['type'] == 'create' or dict_['type'] == 'list' or dict_['type'] == 'send' \
+            or dict_['type'] == 'getMyId' or dict_['type'] == 'all' or dict_['type'] == 'new' \
+            or dict_['type'] == 'recv':
             try:
                 self.ss.send((json.dumps(dict_))+TERMINATOR)
             except Exception:
