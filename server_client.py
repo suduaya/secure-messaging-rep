@@ -2,6 +2,9 @@ import logging
 from log import *
 import json
 import sys
+import random
+
+
 
 TERMINATOR = "\r\n"
 MAX_BUFSIZE = 64 * 1024
@@ -18,6 +21,17 @@ class Client:
         self.addr = addr
         self.id = None
         self.sa_data = None
+        self.pubKey = None
+        self.modulus_prime = None
+        self.primitive_root = None
+        self.client_pubKey = None
+        self.client_pubNum = None
+        self.sharedKey = None
+        self.cipher = None
+        self.svPrivNum = None
+        self.sv_pubNum = None
+        self.svPrivKey = None
+        self.svPubKey = None
 
     def __str__(self):
         """ Converts object into string.

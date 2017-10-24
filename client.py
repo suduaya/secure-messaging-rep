@@ -4,9 +4,14 @@ import time, base64
 import random
 import logging, socket, datetime
 import os
+from Crypto.Hash import SHA512, HMAC
+from Crypto.Random import random
+from Crypto.PublicKey import RSA
+from string import ascii_lowercase
+from Security_functions import Security
+from Crypto.Protocol.KDF import PBKDF1
 
-
-
+security = Security()   # security module
 HOST = "localhost"   # All available interfaces
 PORT = 8080          # The server port
 
@@ -15,7 +20,20 @@ sys.tracebacklimit = 30
 TERMINATOR = "\r\n"
 MAX_BUFSIZE = 64 * 1024
 
-taskNumber = 0
+# Connection status
+CONNECTED = 1
+NOT_CONNECTED = 2
+
+
+# Mathematics
+PRIMITIVE_ROOT = 5
+MODULUS_PRIME = 0xeb8d2e0bfda29137c04f5a748e88681e87038d2438f1ae9a593f620381e58b47656bf5386f7880da383788a35d3b4a6991d3634b149b3875e0dccff21250dccc0bf865a5b262f204b04e38b2385c7f4fb4e2058f73a8f65252e556b667b1570465b2f6d1beeab215b05cd0e28b9277f3f48c01b1619b30147fcfc87b5b6903e70078babb45c2ee6a6bd4099ab87b01ba09a38c36279b46309ef0df5e45e15df9ba5cb296baa535c60bb0065669fd8078269eb759416d9b27229f9cb6e5f60f7d8756f6f621ad519745f914e81a7c8d09b3c7a764863dd5d5f2bcab5ef283aa3781c985d07f2b1aafb2e7747b3217dbbfea2e91484c31a00e22467c0c7f9d40f73d392594c516b302aa7c1aa6ca5a0b346cc6bfc1cd201dfe78aabf717f6c69f30a896567b07090e352e87fd698128da0594916d27203e22b7bb1f7f860842fd0aee2e532a077629451ef86163fdf567048266050a473d4db27e85a33bc985b16569afddaa9a94a5b9155b32b78c84b261ce7acf7d8d0ef23d4e1d028104aff6a77cab79ecdf7dd19468f67d3cb9b86835cce1a87dbf4b2d3100a9bd7a9e251272bf4e2fed2c2f7535e556b8cc1fc6fcfc1a2ca188c02ea9298bb4a7f12afd4164ad9211f7935f51be3d9d932e835a1fd322e7db75ba587021f8c730d7f021905e89a0ddb80bf8ea53b8f1603cf08c734aadfe7f9184e0de9e91651c3d88deb68fd1bc0188e479747caab9a157ef6ec68295a1bfb6391973364987cda6c7817dfee2ab9d4e0eaefb29154f23eafedcab06d67fbcc5d1788a20315c50f9c6471dbb45419b07ddec0d507c16a0b7e2d79290d3115edcdc2996897015dfa430389a1d63533e52aa6309c76e7069e0a99af65702036e7829bc8e86ad3e23983debf72c82d8e3a2e9d767cccfb2abed6b0b0c9f217bb496ea816ea3c32111f60916d91f8a97cfa38b163ca1261733cd98cb2ff77a7ee9290bda74be8dc206489d06abca4e5ae82ae4923fa43b451fa419da06d74f15e4efc4852bf5edf37e581edeaaefd28a8b3c672bb76068439635adecebaf8311d4018fe8e62892f784d7a44747178c4cb540c58e5e2a660a3f02c873d12b43f0643d3794d8b310fe9fa6d798e0724d38c85c9e4d5c8c9ba645f3411dd4645ef1ef1dad9ba60325b12def1bd706d11386045e450fee2a60c88cf6387dea0521acc4d869fb146a47ef4e34480d30f84ffa0e0e0a4a4c7f1b0a8e642223e8bec4d1c8effd98ba235dc5c5f7e296ecd7476595ef17371a1aec3a38c3e7f7e08e7b5e7c927f5843062f753e5ee85f7e64164dd0ccb7261d4ca3a35058ca88f87275a292e96100005c025742f85be7a2598406b9c792f2ba2a496f8074d899821110effb184e3c679330b182a8c14ba1699f3761168d64e838829c0250c6be87bc8dc2b29954bf6cb450ba7bed793cf97
+get_pubNum = lambda x,y,z: int(pow(x,y,z))
+
+
+def privateNumber():
+    secret = random.getrandbits(256)
+    return secret
 
 #Colours
 class bcolors:
@@ -37,7 +55,7 @@ def get_id(length):
 
 
 
-
+# Client class
 class Client:
 
     def __str__(self):
@@ -56,9 +74,40 @@ class Client:
         self.id = 2
         self.bufin = ""
         self.bufout = ""
-        self.usersLists = []
         self.tasks = []     # request ordenados
         self.mail = {}
+        self.Users = []  # user id, uuid, pubkeys
+        self.pubKey, self.privKey = security.get_keys()
+        self.modulus_prime = MODULUS_PRIME
+        self.primitive_root = PRIMITIVE_ROOT
+        self.pubNum = None
+        self.privNum = None
+        self.sharedKey = None
+        self.serverPubKey = None
+        self.serverPubNum = None
+        self.state = NOT_CONNECTED
+
+    # Function used to chiper/decipher requests, generates symetric key and ciphers with pubKey of dst
+    # or deciphers with my privKey
+    def secureMessage_Chiper(self, operation, data, data_key=None):
+        if operation == 'cipher':
+            print "ciphering"
+            symKey = security.get_symmetricKey(256)
+            instance = RSA.importKey(data_key)
+
+            a = security.AES(message=data, key=symKey)
+            b = security.rsaCipher(message=symKey, key=instance)
+
+            return a, b  # data ciphered with symKey, symKey ciphered with server pubKey
+
+        if operation == 'decipher':
+            print "deciphering"
+            instance = RSA.importKey(self.privKey)
+
+            b = security.rsaDecipher(message=data_key, key=instance)
+            a = security.D_AES(symKey=b, message=data)
+
+            return a
 
     def parseReqs(self, data):
         """Parse a chunk of data from this client.
@@ -147,8 +196,8 @@ class Client:
 
                 print "\n"
                 print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
-                print bcolors.WARNING +"(/recv <msg_number> <src_user>)" + bcolors.ENDC + " Read message"
-                print bcolors.WARNING +"(<)                            " + bcolors.ENDC + " go back to main menu"
+                print bcolors.WARNING +"(/recv <msg_number>)" + bcolors.ENDC + " Read message"
+                print bcolors.WARNING +"(<)                 " + bcolors.ENDC + " go back to main menu"
          
                 self.mail = dict(zip(range(1,len(self.mailBox)+1), self.mailBox))
 
@@ -156,6 +205,26 @@ class Client:
                 return
 
             if 'resultNew' in req:
+                return
+
+            if 'resultDH' in req:
+                self.serverPubNum = int(req['resultDH']['Server_pubNum'])
+                self.serverPubKey = req['server_pubkey']
+                self.sharedKey = int(pow(self.serverPubNum,self.privNum, self.modulus_prime))
+                self.state = CONNECTED
+                #print self.sharedKey
+                #kdf
+                '''
+                message = "hello"
+                salt = os.urandom(8)
+                #kdf = PBKDF1(str(self.sharedKey), salt, 8, count=4096, hashAlgo=SHA512)
+                kdf =  security.kdf(str(self.sharedKey), salt, 8, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest()) # derivada
+                hmac = security.HMAC_ONLY(kdf, message, 512/8) ## autenticar a mensagem
+                print kdf
+
+                check1, data_Ciphered = security.check_HMAC(key=str(kdf), message=hmac, digestSize=64)
+                print check1'''
+
                 return
 
             if 'resultRecv' in req:
@@ -171,18 +240,22 @@ class Client:
                 return               
 
             if 'resultList' in req:
-                aux = []
+                arrayAux = []
                 os.system('clear')
                 print bcolors.OKGREEN + bcolors.BOLD + "        Lista de MessageBoxes (users): \n" + bcolors.ENDC
-                print bcolors.WARNING+"Hello Mr." + str(self.uuid) +"! This is a list of users which you can communicate!"+bcolors.ENDC+"\n"
+                print bcolors.WARNING+"Hello Mr." + bcolors.FAIL+ str(self.uuid) +bcolors.WARNING+"! This is a list of users which you can communicate!"+bcolors.ENDC+"\n"
                 for x in req['resultList']:
-                    aux.append(x['id'])
+                    aux = {}
+                    aux['id'] = x['id']
+                    aux['description'] = x['description']
+                    arrayAux.append(aux)
                     if int(x['id'] != self.id):
-                        print '         -> id: '+bcolors.WARNING+str(x['id'])+bcolors.ENDC +"      (I'm Mr." +bcolors.WARNING + str(x['description']['uuid']) + bcolors.ENDC+ " !)"
+                        print '         -> id: '+bcolors.FAIL+str(x['id'])+bcolors.ENDC +"      (I'm Mr." +bcolors.FAIL + str(x['description']['uuid']) + bcolors.ENDC+ " !)"
                 print "\n"
                 print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
                 print bcolors.WARNING +"(<)    " + bcolors.ENDC + " go back to main menu"
-                self.usersLists = aux
+                self.Users = arrayAux
+                #print self.Users
                 return
 
             if 'resultCreate' in req:
@@ -230,6 +303,9 @@ class Client:
             os.system('clear')
             self.show_menu()
             return
+        if fields[0] == '/dh':
+            self.startDH(1)
+            return
         else:
             logging.error("Invalid input")
             return
@@ -257,8 +333,25 @@ class Client:
                     if len(input) > 0:
                         self.handleInput(input)
     
-    ## Funcoes Listadas
-    # Get do Id interno do cliente no servidor
+    ## Client functions
+    #Start DiffieHelman key exchange
+    def startDH(self, phase):
+        self.primitive_root = PRIMITIVE_ROOT
+        self.modulus_prime = MODULUS_PRIME
+        self.privNum = privateNumber()
+        self.pubNum =  get_pubNum(self.primitive_root, self.privNum, self.modulus_prime)
+        #print self.pubNum
+        data = {
+                "type" : "dh",
+                "phase": int(phase),
+                "id"   : self.uuid,
+                "primitive_root" : self.primitive_root,
+                "modulus_prime"  : self.modulus_prime,
+                "Client_pubNum" : int(self.pubNum),
+        }
+        self.send(data)
+
+    # Get internal id
     def getMyId(self):
     	data = {
     			"type" : "getMyId",
@@ -271,10 +364,11 @@ class Client:
         data = {
                 "type": "create",
                 "uuid": self.uuid,
+                "pubKey" : self.pubKey,
                 }
         self.send(data)
 
-    # Leitura de uma mensagem
+    # Read a message
     def recvMessage(self, msgNr):
         data = {
                 "type": "recv",
@@ -283,7 +377,7 @@ class Client:
                 }
         self.send(data)
 
-    # Listar todas as mensagens de um user
+    # List all messages in boxes, sent and recvd
     def listAllMessages(self):
         data = {
                 "type": "all",
@@ -291,14 +385,14 @@ class Client:
                 }
         self.send(data)
 
-    # Listar User Message Box
+    # List users with details
     def listUserMsgBox(self):
         data = {
                 "type": "list",
                 }
         self.send(data)
 
-    # Listar User Message Box
+    # Send a message to another user/client
     def sendMessage(self, dst, txt):
         data = {
                 "type": "send",
@@ -310,14 +404,38 @@ class Client:
         self.send(data)
 
     # Verificacao do tipo de mensagem e envio (socket.send)
-    def send(self, dict_, client=None):
-        if dict_['type'] == 'create' or dict_['type'] == 'list' or dict_['type'] == 'send' \
-            or dict_['type'] == 'getMyId' or dict_['type'] == 'all' or dict_['type'] == 'new' \
-            or dict_['type'] == 'recv':
-            try:
-                self.ss.send((json.dumps(dict_))+TERMINATOR)
-            except Exception:
-                pass
+    def send(self, dict_):
+        if self.state == NOT_CONNECTED:
+            if dict_['type'] == 'dh':
+                try:
+                    self.ss.send((json.dumps(dict_))+TERMINATOR)
+                except Exception:
+                    pass
+            else:
+                print "Erro! Not connected!"
+
+        if self.state == CONNECTED:
+            if dict_['type'] == 'create' or dict_['type'] == 'list' or dict_['type'] == 'send' \
+                or dict_['type'] == 'getMyId' or dict_['type'] == 'all' or dict_['type'] == 'new' \
+                or dict_['type'] == 'recv' or dict_['type'] == 'dh':
+                try:
+                    message = (json.dumps(dict_))
+
+                    (messageChipered, symKeyCiphered) = self.secureMessage_Chiper('cipher', message, self.serverPubKey)
+
+                    data = {
+                            "type": "secure",
+                            "secdata": base64.b64encode(symKeyCiphered),
+                            "payload": base64.b64encode(messageChipered),
+                            "Client_pubkey": self.pubKey,
+                        }
+
+                    self.ss.send(json.dumps(data)+TERMINATOR)
+                except Exception:
+                    pass
+            else:
+                print "Erro! dunno!"
+            
 
     # Disconnects
     def stop(self):

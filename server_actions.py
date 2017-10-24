@@ -1,8 +1,29 @@
 import logging
 from log import *
+import time, base64
 from server_registry import *
 from server_client import *
+from server import *
 import json
+import random
+from Security_functions import Security
+from Crypto.Hash import SHA512, HMAC
+from Crypto.Random import random
+from Crypto.PublicKey import RSA
+from string import ascii_lowercase
+from Security_functions import Security
+from Crypto.Protocol.KDF import PBKDF1
+
+security = Security()
+
+HOST = ""   # All available interfaces
+PORT = 8080  # The server port
+
+get_pubNum = lambda x,y,z: int(pow(x,y,z))
+
+def privateNumber():
+    secret = int(random.randint(0,100))
+    return secret
 
 class ServerActions:
     def __init__(self):
@@ -17,9 +38,33 @@ class ServerActions:
             'receipt': self.processReceipt,
             'status': self.processStatus,
             'getMyId': self.processGetMyID,
+            'dh': self.processDH,
+            'secure': self.processSecure,
         }
 
         self.registry = ServerRegistry()
+        self.pubKey, self.privKey = security.get_keys()
+        self.client_pubKey = None
+
+    def secureMessage_Chiper(self, operation, data, data_key=None):
+        if operation == 'cipher':
+            print "chipering"
+            symKey = security.get_symmetricKey(256)
+            instance = RSA.importKey(data_key)
+
+            a = security.AES(message=data, key=symKey)
+            b = security.rsaCipher(message=symKey, key=instance)
+
+            return a, b  # data ciphered with symKey, symKey ciphered with server pubKey
+
+        if operation == 'decipher':
+            print "deciphering"
+            instance = RSA.importKey(self.privKey)
+
+            b = security.rsaDecipher(message=data_key, key=instance)
+            a = security.D_AES(symKey=b, message=data)
+
+            return a
 
     def handleRequest(self, s, request, client):
         """Handle a request from a client socket.
@@ -52,6 +97,20 @@ class ServerActions:
         except Exception, e:
             logging.exception("Could not handle request")
 
+    def processSecure(self, data, client):
+
+        print "PROCESS SECURE"
+        self.client_pubKey = data['Client_pubkey']
+        symKeyChipered = base64.b64decode(data['secdata'])
+        messageChipered= base64.b64decode(data['payload'])
+
+        dataFinal = self.secureMessage_Chiper('decipher', data=messageChipered, data_key=symKeyChipered)
+        req = json.loads(dataFinal)
+
+        if req['type'] in dataFinal:
+                self.messageTypes[req['type']](req, client)
+        return
+
     def processCreate(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
 
@@ -62,6 +121,7 @@ class ServerActions:
             return
 
         uuid = data['uuid']
+        pubKey = data['pubKey']
         
         if not isinstance(uuid, int):
             log(logging.ERROR, "No valid \"uuid\" field in \"create\" message: " +
@@ -80,7 +140,7 @@ class ServerActions:
             return
 
         me = self.registry.addUser(data)
-        cliend.id = me.id
+        client.id = me.id
         client.sendResult({"resultCreate": me.id})
 
     def processGetMyID(self, data, client):
@@ -88,6 +148,29 @@ class ServerActions:
 
         userList = self.registry.getMyId(data)
         client.sendResult({"result": userList})
+
+
+    def processDH(self, data, client):
+        client.id = data['id']
+        phase = int(data['phase'])
+        client.modulus_prime = data['modulus_prime']
+        client.primitive_root = data['primitive_root']
+        client.client_pubNum = int(data['Client_pubNum'])
+        client.svPrivNum = privateNumber()
+
+        client.sv_pubNum = int(pow(client.primitive_root, client.svPrivNum, client.modulus_prime))
+        new_sharedKey = int(pow(client.client_pubNum, client.svPrivNum, client.modulus_prime))
+        client.sharedKey = new_sharedKey  
+
+        print new_sharedKey 
+
+        client.sendResult({"resultDH":{
+                                        "Server_pubNum" : client.sv_pubNum,
+                                        "phase" : phase+1
+                                    },
+                            "server_pubkey" : self.pubKey,
+                        })
+
 
     def processList(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
@@ -116,8 +199,6 @@ class ServerActions:
                 "No valid \"id\" field in \"new\" message: " + json.dumps(data))
             client.sendResult({"error": "wrong message format"})
             return
-
-
 
         client.sendResult(
             {"resultNew": self.registry.userNewMessages(user)})

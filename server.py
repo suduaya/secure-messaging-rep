@@ -17,6 +17,7 @@ from server_client import *
 from server_registry import *
 from server_actions import *
 
+
 # Server address
 HOST = ""   # All available interfaces
 PORT = 8080  # The server port
@@ -33,6 +34,7 @@ class Server:
         self.ss.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         self.ss.bind((host, port))
         self.ss.listen(10)
+        
         log(logging.INFO, "Secure IM server listening on %s" %
             str(self.ss.getsockname()))
 
