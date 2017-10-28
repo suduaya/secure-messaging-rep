@@ -113,10 +113,10 @@ class Server:
             self.delClient(s)
         else:
             if len(data) > 0:
-                log(logging.DEBUG, "PARSIIIING")
+                #log(logging.DEBUG, "PARSIIIING")
                 reqs = client.parseReqs(data)
                 for req in reqs:
-                    log(logging.DEBUG, "HANDLEE")
+                    #log(logging.DEBUG, "HANDLEE")
                     self.server_actions.handleRequest(s, req, self.clients[s])
             else:
                 self.delClient(s)

@@ -20,6 +20,7 @@ class Client:
         self.bufout = ""
         self.addr = addr
         self.id = None
+        self.uuid = None
         self.sa_data = None
         self.pubKey = None
         self.modulus_prime = None

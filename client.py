@@ -76,6 +76,7 @@ class Client:
         self.bufout = ""
         self.tasks = []     # request ordenados
         self.mail = {}
+        self.outmail= {}
         self.Users = []  # user id, uuid, pubkeys
         self.pubKey, self.privKey = security.get_keys()
         self.modulus_prime = MODULUS_PRIME
@@ -167,10 +168,8 @@ class Client:
                     if y not in self.outbox:
                         self.outbox.append(y)
 
-
                 self.mailBox = self.newMails + self.inbox   # ordered
 
-                #print self.mailBox
                 print bcolors.OKGREEN + bcolors.BOLD + "        Mensagens (Enviadas/Recebidas): " + bcolors.ENDC
                 print bcolors.WARNING + str(len(self.mailBox)) + " Mensagens Recebidas: " + bcolors.ENDC
                 if len(self.mailBox) == 0:
@@ -184,7 +183,6 @@ class Client:
                         i = i + 1
                         aux = mail.split('_')
                         print str(i) + "- Message " +  str(aux[1]) + " from user " +  str(aux[0]) + bcolors.FAIL +" (NEW!)"+bcolors.ENDC
-
                 print "\n"
                 print bcolors.WARNING + str(len(self.outbox))  + " Mensagens Enviadas: " + bcolors.ENDC
                 if len(self.outbox) == 0:
@@ -193,25 +191,29 @@ class Client:
                     aux = mail.split('_')
                     i = i + 1
                     print str(i) +"- Message " +  str(aux[1]) + " sent to user " +  str(aux[0])
-
                 print "\n"
                 print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
                 print bcolors.WARNING +"(/recv <msg_number>)" + bcolors.ENDC + " Read message"
                 print bcolors.WARNING +"(<)                 " + bcolors.ENDC + " go back to main menu"
-         
                 self.mail = dict(zip(range(1,len(self.mailBox)+1), self.mailBox))
+                self.outmail = dict(zip(range(1,len(self.outbox)+1), self.outbox))
 
-                #print self.mail
                 return
 
             if 'resultNew' in req:
                 return
 
+            if 'resultStatus' in req:
+                return
+
             if 'resultDH' in req:
+                os.system('clear')
+                self.show_menu()
                 self.serverPubNum = int(req['resultDH']['Server_pubNum'])
                 self.serverPubKey = req['server_pubkey']
                 self.sharedKey = int(pow(self.serverPubNum,self.privNum, self.modulus_prime))
                 self.state = CONNECTED
+                print "Sucessfully Connected!"
                 #print self.sharedKey
                 #kdf
                 '''
@@ -224,7 +226,6 @@ class Client:
 
                 check1, data_Ciphered = security.check_HMAC(key=str(kdf), message=hmac, digestSize=64)
                 print check1'''
-
                 return
 
             if 'resultRecv' in req:
@@ -294,7 +295,7 @@ class Client:
             self.listAllMessages()
             return
         if fields[0] == '/send':
-            self.sendMessage(int(fields[1]), str(fields[2]))
+            self.sendMessage(int(fields[1]), fields[2:])
             return
         if fields[0] == '/recv':
             self.recvMessage(int(fields[1]))
@@ -303,8 +304,11 @@ class Client:
             os.system('clear')
             self.show_menu()
             return
-        if fields[0] == '/dh':
+        if fields[0] == '/connect':
             self.startDH(1)
+            return
+        if fields[0] == '/status':
+            self.status(int(fields[1]))
             return
         else:
             logging.error("Invalid input")
@@ -359,6 +363,15 @@ class Client:
     	}
     	self.send(data)
 
+    # Message status
+    def status(self, msgNr):
+        data = {
+                "type" : "status",
+                "id"   : self.id,
+                "msg"  : self.outmail[msgNr],
+        }
+        self.send(data)
+
     # Create User Message Box
     def createUserMsgBox(self):
         data = {
@@ -394,12 +407,17 @@ class Client:
 
     # Send a message to another user/client
     def sendMessage(self, dst, txt):
+        sending = ""
+        for t in txt:
+            sending += (str(t))
+            sending += " "
+
         data = {
                 "type": "send",
                 "src": self.id,
                 "dst": dst,
-                "msg": txt,
-                "copy": txt,
+                "msg": sending,
+                "copy": sending,
                 }
         self.send(data)
 
@@ -412,12 +430,12 @@ class Client:
                 except Exception:
                     pass
             else:
-                print "Erro! Not connected!"
+                print "Error! Not connected!"
 
         if self.state == CONNECTED:
             if dict_['type'] == 'create' or dict_['type'] == 'list' or dict_['type'] == 'send' \
                 or dict_['type'] == 'getMyId' or dict_['type'] == 'all' or dict_['type'] == 'new' \
-                or dict_['type'] == 'recv' or dict_['type'] == 'dh':
+                or dict_['type'] == 'recv' or dict_['type'] == 'dh' or dict_['type'] == 'status':
                 try:
                     message = (json.dumps(dict_))
 
@@ -434,7 +452,7 @@ class Client:
                 except Exception:
                     pass
             else:
-                print "Erro! dunno!"
+                print "Error! dunno!"
             
 
     # Disconnects
@@ -454,7 +472,8 @@ class Client:
     # Menu inicial
     def show_menu(self):
         print bcolors.HEADER + bcolors.BOLD + "     Secure Messaging Repository System\n" + bcolors.ENDC
-        print bcolors.WARNING + "(/create)                 " + bcolors.ENDC + "Create a User Message Box (dup)\n" + \
+        print bcolors.WARNING + "(/connect)                " + bcolors.ENDC + "Connect to Server\n" + \
+              bcolors.WARNING + "(/create)                 " + bcolors.ENDC + "Create a User Message Box\n" + \
               bcolors.WARNING + "(/list)                   " + bcolors.ENDC + "List All Users\n" + \
               bcolors.WARNING + "(/all)                    " + bcolors.ENDC + "List All Messages\n" + \
               bcolors.WARNING + "(/send <user> <text>)     " + bcolors.ENDC + "Send a Message\n"

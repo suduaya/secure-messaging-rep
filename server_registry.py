@@ -26,6 +26,7 @@ class ServerRegistry:
     def __init__(self):
 
         self.users = {}
+        self.clientsInfo = {}
 
         for dirname in [MBOXES_PATH, RECEIPTS_PATH]:
             try:

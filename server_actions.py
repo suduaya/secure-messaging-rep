@@ -121,7 +121,7 @@ class ServerActions:
             return
 
         uuid = data['uuid']
-        pubKey = data['pubKey']
+        #pubKey = data['pubKey'] #ja esta na data = description
         
         if not isinstance(uuid, int):
             log(logging.ERROR, "No valid \"uuid\" field in \"create\" message: " +
@@ -141,6 +141,8 @@ class ServerActions:
 
         me = self.registry.addUser(data)
         client.id = me.id
+        #aceder a pubkey de um cliente
+        #print self.registry.users[client.id]['description']['pubKey']
         client.sendResult({"resultCreate": me.id})
 
     def processGetMyID(self, data, client):
@@ -316,4 +318,4 @@ class ServerActions:
             return
 
         response = self.registry.getReceipts(fromId, msg)
-        client.sendResult({"result": response})
+        client.sendResult({"resultStatus": response})
