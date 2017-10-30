@@ -299,6 +299,7 @@ class Client:
             return
         if fields[0] == '/recv':
             self.recvMessage(int(fields[1]))
+            self.receipt(int(fields[1]))
             return
         if fields[0] == '<':
             os.system('clear')
@@ -372,6 +373,17 @@ class Client:
         }
         self.send(data)
 
+    # Message receipt
+    def receipt(self, msgNr):
+        #sender = int(self.mail[msgNr][0])
+        data = {
+                "type" : "receipt",
+                "id"   : self.id,
+                "msg"  : self.mail[msgNr],
+                "receipt": "wtf",
+        }
+        self.send(data)
+
     # Create User Message Box
     def createUserMsgBox(self):
         data = {
@@ -435,7 +447,7 @@ class Client:
         if self.state == CONNECTED:
             if dict_['type'] == 'create' or dict_['type'] == 'list' or dict_['type'] == 'send' \
                 or dict_['type'] == 'getMyId' or dict_['type'] == 'all' or dict_['type'] == 'new' \
-                or dict_['type'] == 'recv' or dict_['type'] == 'dh' or dict_['type'] == 'status':
+                or dict_['type'] == 'recv' or dict_['type'] == 'dh' or dict_['type'] == 'status' or dict_['type'] == 'receipt':
                 try:
                     message = (json.dumps(dict_))
 

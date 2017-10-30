@@ -49,6 +49,7 @@ class Security:
         new_key = RSA.generate(2048)
         return (new_key.publickey().exportKey('PEM'),new_key.exportKey('PEM'))
 
+    ## https://www.dlitz.net/software/pycrypto/api/2.6/
     def rsaCipher(self, message, key):
         h = SHA.new(message)
         cipher = PKCS1_v1_5.new(key)        #instance
