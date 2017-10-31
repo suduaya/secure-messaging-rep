@@ -70,8 +70,8 @@ class Client:
         logging.info(bcolors.OKBLUE+"Client listening on"+bcolors.ENDC+"%s", self.ss.getsockname())
         self.myConnections = {}
         self.inputs = []        # Sockets from which we expect to read
-        self.uuid = 20
-        self.id = 2
+        self.uuid = 10
+        self.id = 1
         self.bufin = ""
         self.bufout = ""
         self.tasks = []     # request ordenados
@@ -187,10 +187,16 @@ class Client:
                 print bcolors.WARNING + str(len(self.outbox))  + " Mensagens Enviadas: " + bcolors.ENDC
                 if len(self.outbox) == 0:
                         print "Voce nao tem mensagens enviadas\n"
+                i = 0
                 for mail in self.outbox:
-                    aux = mail.split('_')
-                    i = i + 1
-                    print str(i) +"- Message " +  str(aux[1]) + " sent to user " +  str(aux[0])
+                    if mail[0] == '_':
+                        i = i + 1
+                        aux = mail.split('_')
+                        print str(i) + "- Message " +  str(aux[2]) + " sent to user " +  str(aux[1]) + bcolors.WARNING +" (READ!)"+bcolors.ENDC
+                    else:
+                        aux = mail.split('_')
+                        i = i + 1
+                        print str(i) +"- Message " +  str(aux[1]) + " sent to user " +  str(aux[0])
                 print "\n"
                 print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
                 print bcolors.WARNING +"(/recv <msg_number>)" + bcolors.ENDC + " Read message"

@@ -235,8 +235,13 @@ class ServerRegistry:
         try:
             path = os.path.join(self.userMessageBox(dst), src + "_")
             
-            nr = self.newFile(path)
-            print nr
+            path2 = os.path.join(self.userMessageBox(dst), "_" + src + "_")
+
+            nr1 = self.newFile(path)
+            nr2 = self.newFile(path2)
+            print nr1
+            print nr2
+            nr = max(nr1, nr2)
             self.saveOnFile(path + nr, msg)
 
             result = [src + "_" + nr]
