@@ -65,7 +65,8 @@ class Security:
         return symmetric_key[:-dsize]
 
     ##################################################HASH##############################################################
-    def HMAC_SHA(self, key, message, digestSize):
+    # gerar novo [hmac(key, message) + mensagem]
+    def HMAC_SHA(self, key, message, digestSize):   # estamos a usar digestsize = 64 => SHA512
         message_b = bytes(message)
         digestSize = int(digestSize)
         if digestSize == 20:
@@ -85,12 +86,15 @@ class Security:
             return hash
 
     def check_HMAC(self, key, message, digestSize):
+        # https://stackoverflow.com/questions/46311990/hmac-in-message-vs-hmac-in-digest
+        #a[0] = [:h.digestSize*2] = get the hmac
+        #a[1] = [h.digestSize*2:] = get the data message
         digestSize = int(digestSize)
         msg = bytes(message)
         if digestSize == 64:
-            a = [msg[i:i + (digestSize*2)] for i in range(0, len(msg), (digestSize*2))]
+            a = [msg[i:i + (digestSize*2)] for i in range(0, len(msg), (digestSize*2))] # split into hmac and text
             fullmsg = ''
-            for i in a[1:]:
+            for i in a[1:]: # build message
                 fullmsg += str(i)
             return (True, fullmsg) if a[0] == ((HMAC.new(key=key, msg=str(fullmsg), digestmod=SHA512)).hexdigest()) else (
                 False, [])
@@ -123,7 +127,8 @@ class Security:
             return (True, fullmsg) if a[0] == ((HMAC.new(key=key, msg=str(fullmsg), digestmod=SHA)).hexdigest()) else (
                 False, [])
 
-    def HMAC_ONLY(self, key, message, digestSize):
+    # gera apenas o HMAC retornado de um request
+    def HMAC_ONLY(self, key, message, digestSize):  # estamos a usar digestsize = 64 => SHA512
         message_b = bytes(message)
         digestSize = int(digestSize)
         if digestSize == 20:
@@ -142,6 +147,7 @@ class Security:
             hash = (HMAC.new(key=key, msg=message_b, digestmod=SHA512)).hexdigest()
             return hash
 
+    # key derivation function check
     def check_kdf(self, key, message, bits):
         msg = bytes(message)
         #a = [msg[i:i + int(bits)/4] for i in range(0, len(msg), int(bits)/4)]
@@ -160,11 +166,13 @@ class Security:
             return (True, salt, kdf_key) if hmac == ((HMAC.new(key=str(kdf_key), msg=str(salt), digestmod=SHA)).hexdigest()) else (False,[], "")
 
 
-
+    # funcoes de sintese sha256 e sha512
     def SHA256(self, message):
         return SHA256.new(message).digest()
     def SHA512(self, message):
         return SHA512.new(message).digest()+message
+
+    # key derivation function
     def kdf(self, pw, salt, klen, count, prf=None):
         key = PBKDF2(password=pw, salt=salt, dkLen=klen, count=count,prf=prf)
         return key
