@@ -170,10 +170,10 @@ class Client:
 
                 self.mailBox = self.newMails + self.inbox   # ordered
 
-                print bcolors.OKGREEN + bcolors.BOLD + "        Mensagens (Enviadas/Recebidas): " + bcolors.ENDC
-                print bcolors.WARNING + str(len(self.mailBox)) + " Mensagens Recebidas: " + bcolors.ENDC
+                print bcolors.OKGREEN + bcolors.BOLD + "        Mensagens (Inbox/Outbox): " + bcolors.ENDC
+                print bcolors.WARNING + str(len(self.mailBox)) + " Received Messages: " + bcolors.ENDC
                 if len(self.mailBox) == 0:
-                        print "Voce nao tem mensagens disponiveis\n"
+                        print "You didnt received any message yet.\n"
                 for mail in self.mailBox:
                     if mail[0] == '_':
                         i = i + 1
@@ -184,23 +184,21 @@ class Client:
                         aux = mail.split('_')
                         print str(i) + "- Message " +  str(aux[1]) + " from user " +  str(aux[0]) + bcolors.FAIL +" (NEW!)"+bcolors.ENDC
                 print "\n"
-                print bcolors.WARNING + str(len(self.outbox))  + " Mensagens Enviadas: " + bcolors.ENDC
+                print bcolors.WARNING + str(len(self.outbox))  + " Sent Messages: " + bcolors.ENDC
                 if len(self.outbox) == 0:
-                        print "Voce nao tem mensagens enviadas\n"
+                        print "You didnt send any message yet.\n"
                 i = 0
                 for mail in self.outbox:
-                    if mail[0] == '_':
-                        i = i + 1
-                        aux = mail.split('_')
-                        print str(i) + "- Message " +  str(aux[2]) + " sent to user " +  str(aux[1]) + bcolors.WARNING +" (READ!)"+bcolors.ENDC
-                    else:
-                        aux = mail.split('_')
-                        i = i + 1
-                        print str(i) +"- Message " +  str(aux[1]) + " sent to user " +  str(aux[0])
+                    aux = mail.split('_')
+                    i = i + 1
+                    print str(i) +"- Message " +  str(aux[1]) + " sent to user " +  str(aux[0])
                 print "\n"
                 print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
-                print bcolors.WARNING +"(/recv <msg_number>)" + bcolors.ENDC + " Read message"
-                print bcolors.WARNING +"(<)                 " + bcolors.ENDC + " go back to main menu"
+
+                print bcolors.WARNING +"(/send  <user> <text>)" + bcolors.ENDC + "  Send a Message"
+                print bcolors.WARNING +"(/recv   <msg_number>)" + bcolors.ENDC + "  Read message"
+                print bcolors.WARNING +"(/status <msg_number>)" + bcolors.ENDC + "  Check Receipt Status"
+                print bcolors.WARNING +"(<)                   " + bcolors.ENDC + "  go back to main menu"
                 self.mail = dict(zip(range(1,len(self.mailBox)+1), self.mailBox))
                 self.outmail = dict(zip(range(1,len(self.outbox)+1), self.outbox))
 
@@ -249,7 +247,7 @@ class Client:
             if 'resultList' in req:
                 arrayAux = []
                 os.system('clear')
-                print bcolors.OKGREEN + bcolors.BOLD + "        Lista de MessageBoxes (users): \n" + bcolors.ENDC
+                print bcolors.OKGREEN + bcolors.BOLD + "        MessageBoxes List (users): \n" + bcolors.ENDC
                 print bcolors.WARNING+"Hello Mr." + bcolors.FAIL+ str(self.uuid) +bcolors.WARNING+"! This is a list of users which you can communicate!"+bcolors.ENDC+"\n"
                 for x in req['resultList']:
                     aux = {}
@@ -442,7 +440,7 @@ class Client:
     # Verificacao do tipo de mensagem e envio (socket.send)
     def send(self, dict_):
         if self.state == NOT_CONNECTED:
-            if dict_['type'] == 'dh':
+            if dict_['type'] == 'dh' or dict_['type'] == 'create':
                 try:
                     self.ss.send((json.dumps(dict_))+TERMINATOR)
                 except Exception:
@@ -451,7 +449,7 @@ class Client:
                 print "Error! Not connected!"
 
         if self.state == CONNECTED:
-            if dict_['type'] == 'create' or dict_['type'] == 'list' or dict_['type'] == 'send' \
+            if dict_['type'] == 'list' or dict_['type'] == 'send' \
                 or dict_['type'] == 'getMyId' or dict_['type'] == 'all' or dict_['type'] == 'new' \
                 or dict_['type'] == 'recv' or dict_['type'] == 'dh' or dict_['type'] == 'status' or dict_['type'] == 'receipt':
                 try:
@@ -490,11 +488,12 @@ class Client:
     # Menu inicial
     def show_menu(self):
         print bcolors.HEADER + bcolors.BOLD + "     Secure Messaging Repository System\n" + bcolors.ENDC
-        print bcolors.WARNING + "(/connect)                " + bcolors.ENDC + "Connect to Server\n" + \
-              bcolors.WARNING + "(/create)                 " + bcolors.ENDC + "Create a User Message Box\n" + \
-              bcolors.WARNING + "(/list)                   " + bcolors.ENDC + "List All Users\n" + \
-              bcolors.WARNING + "(/all)                    " + bcolors.ENDC + "List All Messages\n" + \
-              bcolors.WARNING + "(/send <user> <text>)     " + bcolors.ENDC + "Send a Message\n"
+
+        print bcolors.WARNING + "(/create)                 " + bcolors.ENDC + "Create a User Message Box\n" + \
+              bcolors.WARNING + "(/connect)                " + bcolors.ENDC + "Connect to User Message Box\n" + \
+              bcolors.WARNING + "(/list)                   " + bcolors.ENDC + "List All Users Connected\n" + \
+              bcolors.WARNING + "(/all)                    " + bcolors.ENDC + "List All Messages\n" + "\n"+\
+              bcolors.HEADER + bcolors.BOLD + "Command:" + bcolors.ENDC
         return
 
 

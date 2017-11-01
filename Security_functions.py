@@ -45,7 +45,6 @@ class Security:
         return unpad(msg)
 
     ################################################ASSYMETRIC##########################################################
-    # https://stackoverflow.com/questions/5244129/use-rsa-private-key-to-generate-public-key
     def get_keys(self):
         new_key = RSA.generate(2048)
         return (new_key.publickey().exportKey('PEM'),new_key.exportKey('PEM'))
