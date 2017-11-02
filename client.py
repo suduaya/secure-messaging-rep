@@ -1,5 +1,6 @@
 import select, socket, sys
 import json
+import ast
 import time, base64
 import random
 import logging, socket, datetime
@@ -90,7 +91,7 @@ class Client:
 
     # Function used to chiper/decipher requests, generates symetric key and ciphers with pubKey of dst
     # or deciphers with my privKey
-    def secureMessage_Chiper(self, operation, data, data_key=None):
+    def secureMessage_Cipher(self, operation, data, data_key=None):
         if operation == 'cipher':
             print "ciphering"
             symKey = security.get_symmetricKey(256)
@@ -235,7 +236,7 @@ class Client:
             if 'resultRecv' in req:
                 os.system('clear')
                 source = req['resultRecv'][0]
-                msg = req['resultRecv'][1]
+                msg = str(req['resultRecv'][1])
                 print bcolors.OKGREEN + bcolors.BOLD + "Source: " + bcolors.ENDC + str(source) 
                 print bcolors.WARNING + bcolors.BOLD + "Message: " +bcolors.ENDC
                 print msg
@@ -260,7 +261,6 @@ class Client:
                 print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
                 print bcolors.WARNING +"(<)    " + bcolors.ENDC + " go back to main menu"
                 self.Users = arrayAux
-                #print self.Users
                 return
 
             if 'resultCreate' in req:
@@ -427,13 +427,18 @@ class Client:
         for t in txt:
             sending += (str(t))
             sending += " "
-
+        '''
+        for users in self.Users:
+            if users['id'] == dst:
+                key = users['description']['pubKey']
+        '''
+        
         data = {
                 "type": "send",
                 "src": self.id,
                 "dst": dst,
                 "msg": sending,
-                "copy": sending,
+                "copy": sending,        # beta
                 }
         self.send(data)
 
@@ -455,12 +460,12 @@ class Client:
                 try:
                     message = (json.dumps(dict_))
 
-                    (messageChipered, symKeyCiphered) = self.secureMessage_Chiper('cipher', message, self.serverPubKey)
+                    (messageCiphered, symKeyCiphered) = self.secureMessage_Cipher('cipher', message, self.serverPubKey)
 
                     data = {
                             "type": "secure",
                             "secdata": base64.b64encode(symKeyCiphered),
-                            "payload": base64.b64encode(messageChipered),
+                            "payload": base64.b64encode(messageCiphered),
                             "Client_pubkey": self.pubKey,
                         }
 

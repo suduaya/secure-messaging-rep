@@ -46,7 +46,7 @@ class ServerActions:
         self.pubKey, self.privKey = security.get_keys()
         self.client_pubKey = None
 
-    def secureMessage_Chiper(self, operation, data, data_key=None):
+    def secureMessage_Cipher(self, operation, data, data_key=None):
         if operation == 'cipher':
             print "chipering"
             symKey = security.get_symmetricKey(256)
@@ -101,10 +101,10 @@ class ServerActions:
 
         print "PROCESS SECURE"
         self.client_pubKey = data['Client_pubkey']
-        symKeyChipered = base64.b64decode(data['secdata'])
-        messageChipered= base64.b64decode(data['payload'])
+        symKeyCiphered = base64.b64decode(data['secdata'])
+        messageCiphered= base64.b64decode(data['payload'])
 
-        dataFinal = self.secureMessage_Chiper('decipher', data=messageChipered, data_key=symKeyChipered)
+        dataFinal = self.secureMessage_Cipher('decipher', data=messageCiphered, data_key=symKeyCiphered)
         req = json.loads(dataFinal)
 
         if req['type'] in dataFinal:
@@ -233,6 +233,7 @@ class ServerActions:
         srcId = int(data['src'])
         dstId = int(data['dst'])
         msg = str(data['msg'])
+
         copy = str(data['copy'])
 
         if not self.registry.userExists(srcId):
