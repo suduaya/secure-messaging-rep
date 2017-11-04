@@ -71,8 +71,8 @@ class Client:
         logging.info(bcolors.OKBLUE+"Client listening on"+bcolors.ENDC+"%s", self.ss.getsockname())
         self.myConnections = {}
         self.inputs = []        # Sockets from which we expect to read
-        self.uuid = 10
-        self.id = 1
+        self.uuid = 20
+        self.id = 2
         self.bufin = ""
         self.bufout = ""
         self.tasks = []     # request ordenados

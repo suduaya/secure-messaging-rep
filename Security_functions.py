@@ -146,8 +146,9 @@ class Security:
         if digestSize == 64:
             hash = (HMAC.new(key=key, msg=message_b, digestmod=SHA512)).hexdigest()
             return hash
-
+    
     # key derivation function check
+    #https://www.dlitz.net/software/pycrypto/api/2.6/Crypto.Protocol.KDF-module.html
     def check_kdf(self, key, message, bits):
         msg = bytes(message)
         #a = [msg[i:i + int(bits)/4] for i in range(0, len(msg), int(bits)/4)]
@@ -164,7 +165,11 @@ class Security:
             return (True, salt, kdf_key) if hmac == ((HMAC.new(key=str(kdf_key), msg=str(salt), digestmod=SHA224)).hexdigest()) else (False,[], "")
         if bits=='1':
             return (True, salt, kdf_key) if hmac == ((HMAC.new(key=str(kdf_key), msg=str(salt), digestmod=SHA)).hexdigest()) else (False,[], "")
-
+    # key derivation function
+    #https://www.dlitz.net/software/pycrypto/api/2.6/Crypto.Protocol.KDF-module.html
+    def kdf(self, pw, salt, klen, count, prf=None):
+        key = PBKDF2(password=pw, salt=salt, dkLen=klen, count=count,prf=prf)
+        return key
 
     # funcoes de sintese sha256 e sha512
     def SHA256(self, message):
@@ -172,7 +177,3 @@ class Security:
     def SHA512(self, message):
         return SHA512.new(message).digest()+message
 
-    # key derivation function
-    def kdf(self, pw, salt, klen, count, prf=None):
-        key = PBKDF2(password=pw, salt=salt, dkLen=klen, count=count,prf=prf)
-        return key
