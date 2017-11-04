@@ -75,7 +75,6 @@ class Client:
         self.id = 2
         self.bufin = ""
         self.bufout = ""
-        self.tasks = []     # request ordenados
         self.mail = {}
         self.outmail= {}
         self.Users = []  # user id, uuid, pubkeys
@@ -353,7 +352,7 @@ class Client:
         data = {
                 "type" : "dh",
                 "phase": int(phase),
-                "id"   : self.uuid,
+                "uuid"   : self.uuid,
                 "primitive_root" : self.primitive_root,
                 "modulus_prime"  : self.modulus_prime,
                 "Client_pubNum" : int(self.pubNum),

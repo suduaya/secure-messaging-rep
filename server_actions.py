@@ -153,7 +153,8 @@ class ServerActions:
 
 
     def processDH(self, data, client):
-        client.id = data['id']
+        client.uuid = data['uuid']
+        client.id = self.registry.getId(data['uuid'])
         phase = int(data['phase'])
         client.modulus_prime = data['modulus_prime']
         client.primitive_root = data['primitive_root']
