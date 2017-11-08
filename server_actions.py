@@ -100,7 +100,8 @@ class ServerActions:
     def processSecure(self, data, client):
 
         print "PROCESS SECURE"
-        self.client_pubKey = data['Client_pubkey']
+        #self.client_pubKey = data['Client_pubkey']
+        client.client_pubKey = data['Client_pubkey']
         symKeyCiphered = base64.b64decode(data['secdata'])
         messageCiphered= base64.b64decode(data['payload'])
 
@@ -161,14 +162,14 @@ class ServerActions:
         client.client_pubNum = int(data['Client_pubNum'])
         client.svPrivNum = privateNumber()
 
-        client.sv_pubNum = int(pow(client.primitive_root, client.svPrivNum, client.modulus_prime))
+        client.svPubNum = int(pow(client.primitive_root, client.svPrivNum, client.modulus_prime))
         new_sharedKey = int(pow(client.client_pubNum, client.svPrivNum, client.modulus_prime))
         client.sharedKey = new_sharedKey  
 
         print new_sharedKey 
 
         client.sendResult({"resultDH":{
-                                        "Server_pubNum" : client.sv_pubNum,
+                                        "Server_pubNum" : client.svPubNum,
                                         "phase" : phase+1
                                     },
                             "server_pubkey" : self.pubKey,

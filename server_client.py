@@ -19,20 +19,16 @@ class Client:
         self.bufin = ""
         self.bufout = ""
         self.addr = addr
+        self.name = None
         self.id = None
         self.uuid = None
-        self.sa_data = None
-        self.pubKey = None
         self.modulus_prime = None
         self.primitive_root = None
         self.client_pubKey = None
         self.client_pubNum = None
         self.sharedKey = None
-        self.cipher = None
         self.svPrivNum = None
-        self.sv_pubNum = None
-        self.svPrivKey = None
-        self.svPubKey = None
+        self.svPubNum = None
 
     def __str__(self):
         """ Converts object into string.
