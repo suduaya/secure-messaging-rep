@@ -12,6 +12,7 @@ from string import ascii_lowercase
 from Security_functions import Security
 from Crypto.Protocol.KDF import PBKDF1
 
+
 security = Security()   # security module
 HOST = "localhost"   # All available interfaces
 PORT = 8080          # The server port
@@ -86,6 +87,7 @@ class Client:
         self.sharedKey = None
         self.serverPubKey = None
         self.serverPubNum = None
+        self.salt = None
         self.state = NOT_CONNECTED
 
     # Function used to chiper/decipher requests, generates symetric key and ciphers with pubKey of dst
@@ -272,9 +274,7 @@ class Client:
             if req['type'] == 'connect':
                 return
 
-            elif req['type'] == 'secure':
-            	return
-                #self.processSecure(server, req)
+
 
         except Exception, e:
             logging.exception("Could not handle request")
@@ -292,6 +292,9 @@ class Client:
             self.listUserMsgBox()
             return
         if fields[0] == '/create':
+            if self.id != None:
+                print "You already created at least one MessageBox"
+                return
             self.createUserMsgBox()
             return
         if fields[0] == '/all':
@@ -309,7 +312,11 @@ class Client:
             self.show_menu()
             return
         if fields[0] == '/connect':
-            self.startDH(1)
+            if self.state == NOT_CONNECTED:
+                self.startDH(1)
+            else:
+                print "You are already Connected!"
+                return
             return
         if fields[0] == '/status':
             self.status(int(fields[1]))
@@ -317,6 +324,16 @@ class Client:
         else:
             logging.error("Invalid input")
             return
+
+    def processSecure(self, req):
+        req = json.loads(req)
+        salt = self.salt
+        kdf_key = self.kdf_key
+        content = base64.b64decode(req['content']) #mensagem
+        dataFinal = security.D_AES(message= content, symKey= kdf_key) #decifrar conteudo da mensagem e obter a original
+
+        print "sending request"
+        return dataFinal
 
     def loop(self):
         """
@@ -334,6 +351,9 @@ class Client:
                     if len(data) > 0:
                         reqs = self.parseReqs(data)
                         for req in reqs:
+                            print req
+                            if 'secure' in req:
+                                req = self.processSecure(req)
                             self.handleRequest(req)
                 elif sock == sys.stdin:
                     # Information from keyboard input
@@ -459,12 +479,18 @@ class Client:
                 try:
                     message = (json.dumps(dict_))
 
-                    (messageCiphered, symKeyCiphered) = self.secureMessage_Cipher('cipher', message, self.serverPubKey)
+                    #(messageCiphered, symKeyCiphered) = self.secureMessage_Cipher('cipher', message, self.serverPubKey)
+
+                    salt = security.get_symmetricKey(256)
+                    self.salt = salt
+                    kdf_key = security.kdf(str(self.sharedKey), salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
+                    self.kdf_key = kdf_key
+                    sending =  security.AES(message, kdf_key)
 
                     data = {
                             "type": "secure",
-                            "secdata": base64.b64encode(symKeyCiphered),
-                            "payload": base64.b64encode(messageCiphered),
+                            "content": base64.b64encode(sending),
+                            "salt" : base64.b64encode(salt),
                             "Client_pubkey": self.pubKey,
                         }
 

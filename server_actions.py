@@ -102,10 +102,14 @@ class ServerActions:
         print "PROCESS SECURE"
         #self.client_pubKey = data['Client_pubkey']
         client.client_pubKey = data['Client_pubkey']
-        symKeyCiphered = base64.b64decode(data['secdata'])
-        messageCiphered= base64.b64decode(data['payload'])
+        #symKeyCiphered = base64.b64decode(data['secdata'])
+        #messageCiphered= base64.b64decode(data['payload'])
+        content = base64.b64decode(data['content'])
+        client.salt = base64.b64decode(data['salt'])
 
-        dataFinal = self.secureMessage_Cipher('decipher', data=messageCiphered, data_key=symKeyCiphered)
+        #dataFinal = self.secureMessage_Cipher('decipher', data=messageCiphered, data_key=symKeyCiphered)
+        kdf_key = security.kdf(str(client.sharedKey), client.salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
+        dataFinal = security.D_AES(message= content, symKey= kdf_key)
         req = json.loads(dataFinal)
 
         if req['type'] in dataFinal:
@@ -164,9 +168,9 @@ class ServerActions:
 
         client.svPubNum = int(pow(client.primitive_root, client.svPrivNum, client.modulus_prime))
         new_sharedKey = int(pow(client.client_pubNum, client.svPrivNum, client.modulus_prime))
-        client.sharedKey = new_sharedKey  
+        client.sharedKey = new_sharedKey 
 
-        print new_sharedKey 
+        print new_sharedKey
 
         client.sendResult({"resultDH":{
                                         "Server_pubNum" : client.svPubNum,
@@ -174,6 +178,7 @@ class ServerActions:
                                     },
                             "server_pubkey" : self.pubKey,
                         })
+        client.status = CONNECTED
 
 
     def processList(self, data, client):

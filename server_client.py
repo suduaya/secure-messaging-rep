@@ -1,10 +1,22 @@
 import logging
 from log import *
-import json
+import json, base64
 import sys
 import random
+from Crypto.Hash import SHA512, HMAC
+from Crypto.Random import random
+from Crypto.PublicKey import RSA
+from string import ascii_lowercase
+from Security_functions import Security
+from Crypto.Protocol.KDF import PBKDF1
+from Security_functions import Security
+
+security = Security()   # security module
 
 
+# Connection status
+CONNECTED = 1
+NOT_CONNECTED = 2
 
 TERMINATOR = "\r\n"
 MAX_BUFSIZE = 64 * 1024
@@ -22,6 +34,7 @@ class Client:
         self.name = None
         self.id = None
         self.uuid = None
+        self.salt = None
         self.modulus_prime = None
         self.primitive_root = None
         self.client_pubKey = None
@@ -29,6 +42,7 @@ class Client:
         self.sharedKey = None
         self.svPrivNum = None
         self.svPubNum = None
+        self.status = None
 
     def __str__(self):
         """ Converts object into string.
@@ -54,12 +68,31 @@ class Client:
         print reqs
         self.bufin = reqs[-1]
         return reqs[:-1]
+    
+    def processSecure(self, message):
+        kdf_key = security.kdf(str(self.sharedKey), self.salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
+        sending =  security.AES(message, kdf_key)
 
-    def sendResult(self, obj):
+        return sending
+
+    def sendResult(self, message):
         """Send an object to this client.
         """
+        print self.status
         try:
-            self.bufout += json.dumps(obj) + "\n\n"
+            if self.status == None:
+                self.bufout += json.dumps(message) + "\n\n"
+                print type(message)
+                
+            if self.status == CONNECTED:
+                message = json.dumps(message)
+                message = self.processSecure(message)
+                sending = {
+                            'type' : 'secure',
+                            'content': base64.b64encode(message),
+                }
+                self.bufout += json.dumps(sending) + "\n\n"
+                print type(message)
         except:
             # It should never happen! And not be reported to the client!
             logging.exception("Client.send(%s)" % self)
