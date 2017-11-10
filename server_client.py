@@ -71,28 +71,32 @@ class Client:
     
     def processSecure(self, message):
         kdf_key = security.kdf(str(self.sharedKey), self.salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
-        sending =  security.AES(message, kdf_key)
+        ciphered =  security.AES(message, kdf_key)
+        ciphered_b = base64.b64encode(ciphered)
 
-        return sending
+
+        secure = {
+                    "type" : "secure",
+                    "content": ciphered_b,
+        }
+
+        return json.dumps(secure) #string
 
     def sendResult(self, message):
         """Send an object to this client.
         """
-        print self.status
         try:
             if self.status == None:
                 self.bufout += json.dumps(message) + "\n\n"
-                print type(message)
+
                 
             if self.status == CONNECTED:
-                message = json.dumps(message)
-                message = self.processSecure(message)
-                sending = {
-                            'type' : 'secure',
-                            'content': base64.b64encode(message),
-                }
-                self.bufout += json.dumps(sending) + "\n\n"
-                print type(message)
+                if isinstance(message, dict):
+                    message =  json.dumps(message)
+                    sending = self.processSecure(message)
+
+                self.bufout += sending + "\n\n"
+
         except:
             # It should never happen! And not be reported to the client!
             logging.exception("Client.send(%s)" % self)

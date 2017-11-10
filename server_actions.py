@@ -100,14 +100,10 @@ class ServerActions:
     def processSecure(self, data, client):
 
         print "PROCESS SECURE"
-        #self.client_pubKey = data['Client_pubkey']
         client.client_pubKey = data['Client_pubkey']
-        #symKeyCiphered = base64.b64decode(data['secdata'])
-        #messageCiphered= base64.b64decode(data['payload'])
         content = base64.b64decode(data['content'])
         client.salt = base64.b64decode(data['salt'])
 
-        #dataFinal = self.secureMessage_Cipher('decipher', data=messageCiphered, data_key=symKeyCiphered)
         kdf_key = security.kdf(str(client.sharedKey), client.salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
         dataFinal = security.D_AES(message= content, symKey= kdf_key)
         req = json.loads(dataFinal)
@@ -239,9 +235,9 @@ class ServerActions:
 
         srcId = int(data['src'])
         dstId = int(data['dst'])
-        msg = str(data['msg'])
+        msg = data['msg']
 
-        copy = str(data['copy'])
+        copy = data['copy']
 
         if not self.registry.userExists(srcId):
             log(logging.ERROR,
@@ -287,7 +283,8 @@ class ServerActions:
         # Read message
 
         response = self.registry.recvMessage(fromId, msg)
-
+        print response
+        print type(response)
         client.sendResult({"resultRecv": response})
 
     def processReceipt(self, data, client):

@@ -196,7 +196,6 @@ class Client:
                     print str(i) +"- Message " +  str(aux[1]) + " sent to user " +  str(aux[0])
                 print "\n"
                 print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
-
                 print bcolors.WARNING +"(/send  <user> <text>)" + bcolors.ENDC + "  Send a Message"
                 print bcolors.WARNING +"(/recv   <msg_number>)" + bcolors.ENDC + "  Read message"
                 print bcolors.WARNING +"(/status <msg_number>)" + bcolors.ENDC + "  Check Receipt Status"
@@ -220,18 +219,6 @@ class Client:
                 self.sharedKey = int(pow(self.serverPubNum,self.privNum, self.modulus_prime))
                 self.state = CONNECTED
                 print "Sucessfully Connected!"
-                #print self.sharedKey
-                #kdf
-                '''
-                message = "hello"
-                salt = os.urandom(8)
-                #kdf = PBKDF1(str(self.sharedKey), salt, 8, count=4096, hashAlgo=SHA512)
-                kdf =  security.kdf(str(self.sharedKey), salt, 8, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest()) # derivada
-                hmac = security.HMAC_ONLY(kdf, message, 512/8) ## autenticar a mensagem
-                print kdf
-
-                check1, data_Ciphered = security.check_HMAC(key=str(kdf), message=hmac, digestSize=64)
-                print check1'''
                 return
 
             if 'resultRecv' in req:
@@ -244,6 +231,7 @@ class Client:
                 print "\n"
                 print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
                 print bcolors.WARNING +"(<)    " + bcolors.ENDC + " go back to main menu"
+                self.receipt(int(source))
                 return               
 
             if 'resultList' in req:
@@ -305,7 +293,7 @@ class Client:
             return
         if fields[0] == '/recv':
             self.recvMessage(int(fields[1]))
-            self.receipt(int(fields[1]))
+            #self.receipt(int(fields[1]))
             return
         if fields[0] == '<':
             os.system('clear')
@@ -326,13 +314,20 @@ class Client:
             return
 
     def processSecure(self, req):
+        print req
         req = json.loads(req)
         salt = self.salt
         kdf_key = self.kdf_key
-        content = base64.b64decode(req['content']) #mensagem
-        dataFinal = security.D_AES(message= content, symKey= kdf_key) #decifrar conteudo da mensagem e obter a original
+        content = req['content'] #mensagem
+        print content
+        print type(content)
+        content_decoded = base64.b64decode(content)
+        print content_decoded
+        print type(content_decoded)
+        dataFinal = security.D_AES(message= content_decoded, symKey= kdf_key) #decifrar conteudo da mensagem e obter a original
+        print dataFinal
 
-        print "sending request"
+
         return dataFinal
 
     def loop(self):
@@ -446,12 +441,8 @@ class Client:
         for t in txt:
             sending += (str(t))
             sending += " "
-        '''
-        for users in self.Users:
-            if users['id'] == dst:
-                key = users['description']['pubKey']
-        '''
         
+        print type(sending)
         data = {
                 "type": "send",
                 "src": self.id,
@@ -483,7 +474,7 @@ class Client:
 
                     salt = security.get_symmetricKey(256)
                     self.salt = salt
-                    kdf_key = security.kdf(str(self.sharedKey), salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
+                    kdf_key = security.kdf(str(self.sharedKey), self.salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
                     self.kdf_key = kdf_key
                     sending =  security.AES(message, kdf_key)
 
