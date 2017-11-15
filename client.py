@@ -72,8 +72,8 @@ class Client:
         logging.info(bcolors.OKBLUE+"Client listening on"+bcolors.ENDC+"%s", self.ss.getsockname())
         self.myConnections = {}
         self.inputs = []        # Sockets from which we expect to read
-        self.uuid = 10
-        self.id = 1
+        self.uuid = "suduaya"
+        self.id = None
         self.bufin = ""
         self.bufout = ""
         self.mail = {}
@@ -89,12 +89,14 @@ class Client:
         self.serverPubNum = None
         self.salt = None
         self.state = NOT_CONNECTED
+        ## flag
+        self.sync = True
 
     # Function used to chiper/decipher requests, generates symetric key and ciphers with pubKey of dst
     # or deciphers with my privKey
     def secureMessage_Cipher(self, operation, data, data_key=None):
         if operation == 'cipher':
-            print "ciphering"
+            #print "ciphering"
             symKey = security.get_symmetricKey(256)
             instance = RSA.importKey(data_key)
 
@@ -104,7 +106,7 @@ class Client:
             return a, b  # data ciphered with symKey, symKey ciphered with server pubKey
 
         if operation == 'decipher':
-            print "deciphering"
+            #print "deciphering"
             instance = RSA.importKey(self.privKey)
 
             b = security.rsaDecipher(message=data_key, key=instance)
@@ -119,8 +121,8 @@ class Client:
         This is called whenever data is available from client socket."""
 
         if len(self.bufin) + len(data) > MAX_BUFSIZE:
-            log(logging.ERROR, "Client (%s) buffer exceeds MAX BUFSIZE. %d > %d" %
-                (self, len(self.bufin) + len(data), MAX_BUFSIZE))
+            '''log(logging.ERROR, "Client (%s) buffer exceeds MAX BUFSIZE. %d > %d" %
+                (self, len(self.bufin) + len(data), MAX_BUFSIZE))'''
             self.bufin = ""
 
         self.bufin += data
@@ -128,6 +130,12 @@ class Client:
         self.bufin = reqs[-1]
 
         return reqs[:-1]
+
+    def getUUID(self, idd):
+        for x in self.Users:
+            y = dict(x)
+            if y['id'] == int(idd):
+                return str(y['description']['uuid']) 
 
     def handleRequest(self, request):
         """
@@ -140,7 +148,7 @@ class Client:
         self.mailBox=[]
         self.outbox=[]
         try:
-            logging.info("HANDLING message from server: %r", repr(request))
+            #logging.info("HANDLING message from server: %r", repr(request))
 
             try:
                 req = json.loads(request)
@@ -180,11 +188,11 @@ class Client:
                     if mail[0] == '_':
                         i = i + 1
                         aux = mail.split('_')
-                        print str(i) + "- Message " +  str(aux[2]) + " from user " +  str(aux[1])
+                        print str(i) + "- Message " +  str(aux[2]) + " from " +  self.getUUID(str(aux[1]))
                     else:
                         i = i + 1
                         aux = mail.split('_')
-                        print str(i) + "- Message " +  str(aux[1]) + " from user " +  str(aux[0]) + bcolors.FAIL +" (NEW!)"+bcolors.ENDC
+                        print str(i) + "- Message " +  str(aux[1]) + " from " +  self.getUUID(str(aux[0])) + bcolors.FAIL +" (NEW!)"+bcolors.ENDC
                 print "\n"
                 print bcolors.WARNING + str(len(self.outbox))  + " Sent Messages: " + bcolors.ENDC
                 if len(self.outbox) == 0:
@@ -193,7 +201,7 @@ class Client:
                 for mail in self.outbox:
                     aux = mail.split('_')
                     i = i + 1
-                    print str(i) +"- Message " +  str(aux[1]) + " sent to user " +  str(aux[0])
+                    print str(i) +"- Message " +  str(aux[1]) + " sent to user " +  self.getUUID(str(aux[0]))
                 print "\n"
                 print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
                 print bcolors.WARNING +"(/send  <user> <text>)" + bcolors.ENDC + "  Send a Message"
@@ -209,23 +217,25 @@ class Client:
                 return
 
             if 'resultStatus' in req:
+                print req
                 return
 
-            if 'resultDH' in req:
-                os.system('clear')
-                self.show_menu()
+            if 'resultDH' in req:       #connect
+                #os.system('clear')
+                #self.show_menu()
                 self.serverPubNum = int(req['resultDH']['Server_pubNum'])
                 self.serverPubKey = req['server_pubkey']
                 self.sharedKey = int(pow(self.serverPubNum,self.privNum, self.modulus_prime))
                 self.state = CONNECTED
                 print "Sucessfully Connected!"
+                self.listUserMsgBox()
                 return
 
             if 'resultRecv' in req:
                 os.system('clear')
                 source = req['resultRecv'][0]
                 msg = str(req['resultRecv'][1])
-                print bcolors.OKGREEN + bcolors.BOLD + "Source: " + bcolors.ENDC + str(source) 
+                print bcolors.OKGREEN + bcolors.BOLD + "Source: " + bcolors.ENDC + self.getUUID(str(source))
                 print bcolors.WARNING + bcolors.BOLD + "Message: " +bcolors.ENDC
                 print msg
                 print "\n"
@@ -236,20 +246,25 @@ class Client:
 
             if 'resultList' in req:
                 arrayAux = []
-                os.system('clear')
-                print bcolors.OKGREEN + bcolors.BOLD + "        MessageBoxes List (users): \n" + bcolors.ENDC
-                print bcolors.WARNING+"Hello Mr." + bcolors.FAIL+ str(self.uuid) +bcolors.WARNING+"! This is a list of users which you can communicate!"+bcolors.ENDC+"\n"
+                
+                if self.sync == False:
+                    os.system('clear')
+                    print bcolors.OKGREEN + bcolors.BOLD + "        MessageBoxes List (users): \n" + bcolors.ENDC
+                    print bcolors.WARNING+"Hello Mr." + bcolors.FAIL+ str(self.uuid) +bcolors.WARNING+"! This is a list of users which you can communicate!"+bcolors.ENDC+"\n"
                 for x in req['resultList']:
                     aux = {}
                     aux['id'] = x['id']
                     aux['description'] = x['description']
                     arrayAux.append(aux)
-                    if int(x['id'] != self.id):
-                        print '         -> id: '+bcolors.FAIL+str(x['id'])+bcolors.ENDC +"      (I'm Mr." +bcolors.FAIL + str(x['description']['uuid']) + bcolors.ENDC+ " !)"
-                print "\n"
-                print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
-                print bcolors.WARNING +"(<)    " + bcolors.ENDC + " go back to main menu"
+                    if self.sync == False:
+                        if (x['description']['uuid'] != (self.uuid)):
+                            print '         -> MessageBox id: '+bcolors.FAIL+str(x['id'])+bcolors.ENDC +"      (I'm Mr." +bcolors.FAIL + str(x['description']['uuid']) + bcolors.ENDC+ " !)"
+                if self.sync == False:
+                    print "\n"
+                    print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
+                    print bcolors.WARNING +"(<)    " + bcolors.ENDC + " go back to main menu"
                 self.Users = arrayAux
+                self.sync = False
                 return
 
             if 'resultCreate' in req:
@@ -289,7 +304,7 @@ class Client:
             self.listAllMessages()
             return
         if fields[0] == '/send':
-            self.sendMessage(int(fields[1]), fields[2:])
+            self.sendMessage(str(fields[1]), fields[2:])
             return
         if fields[0] == '/recv':
             self.recvMessage(int(fields[1]))
@@ -314,20 +329,12 @@ class Client:
             return
 
     def processSecure(self, req):
-        print req
         req = json.loads(req)
         salt = self.salt
         kdf_key = self.kdf_key
         content = req['content'] #mensagem
-        print content
-        print type(content)
         content_decoded = base64.b64decode(content)
-        print content_decoded
-        print type(content_decoded)
         dataFinal = security.D_AES(message= content_decoded, symKey= kdf_key) #decifrar conteudo da mensagem e obter a original
-        print dataFinal
-
-
         return dataFinal
 
     def loop(self):
@@ -346,7 +353,7 @@ class Client:
                     if len(data) > 0:
                         reqs = self.parseReqs(data)
                         for req in reqs:
-                            print req
+                            #print req
                             if 'secure' in req:
                                 req = self.processSecure(req)
                             self.handleRequest(req)
@@ -386,7 +393,7 @@ class Client:
     def status(self, msgNr):
         data = {
                 "type" : "status",
-                "id"   : self.id,
+                "id"   : self.uuid,
                 "msg"  : self.outmail[msgNr],
         }
         self.send(data)
@@ -396,8 +403,8 @@ class Client:
         #sender = int(self.mail[msgNr][0])
         data = {
                 "type" : "receipt",
-                "id"   : self.id,
-                "msg"  : self.mail[msgNr],
+                "id"   : self.uuid,
+                "msg"  : self.mail[int(msgNr)-1],
                 "receipt": "wtf",
         }
         self.send(data)
@@ -415,7 +422,7 @@ class Client:
     def recvMessage(self, msgNr):
         data = {
                 "type": "recv",
-                "id"  : self.id,
+                "id"  : self.uuid,
                 "msg" : self.mail[msgNr],
                 }
         self.send(data)
@@ -424,7 +431,7 @@ class Client:
     def listAllMessages(self):
         data = {
                 "type": "all",
-                "id": self.id,
+                "id": self.uuid,
                 }
         self.send(data)
 
@@ -445,7 +452,7 @@ class Client:
         print type(sending)
         data = {
                 "type": "send",
-                "src": self.id,
+                "src": self.uuid,
                 "dst": dst,
                 "msg": sending,
                 "copy": sending,        # beta

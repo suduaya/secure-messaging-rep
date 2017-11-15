@@ -123,12 +123,13 @@ class ServerActions:
 
         uuid = data['uuid']
         #pubKey = data['pubKey'] #ja esta na data = description
-        
+
+        '''
         if not isinstance(uuid, int):
             log(logging.ERROR, "No valid \"uuid\" field in \"create\" message: " +
                 json.dumps(data))
             client.sendResult({"error": "wrong message format"})
-            return
+            return'''
 
         if self.registry.userExists(uuid):
             log(logging.ERROR, "User already exists: " + json.dumps(data))
@@ -166,7 +167,11 @@ class ServerActions:
         new_sharedKey = int(pow(client.client_pubNum, client.svPrivNum, client.modulus_prime))
         client.sharedKey = new_sharedKey 
 
-        print new_sharedKey
+        #print new_sharedKey
+        if not self.registry.userDirExists(client.uuid):
+            log(logging.ERROR, "User doesnt exists: " + json.dumps(data))
+            client.sendResult({"error": "uuid doenst exists"})
+            return
 
         client.sendResult({"resultDH":{
                                         "Server_pubNum" : client.svPubNum,
@@ -215,7 +220,7 @@ class ServerActions:
 
         # recebe o uuid, vai buscar o id
         if 'id' in data.keys():
-            user = int(data['id'])
+            user = self.registry.getId((data['id']))
 
         if user < 0:
             log(logging.ERROR,
@@ -233,8 +238,8 @@ class ServerActions:
                 "Badly formated \"send\" message: " + json.dumps(data))
             client.sendResult({"error": "wrong message format"})
 
-        srcId = int(data['src'])
-        dstId = int(data['dst'])
+        srcId = self.registry.getId((data['src'])) 
+        dstId = self.registry.getId((data['dst']))
         msg = data['msg']
 
         copy = data['copy']
@@ -265,7 +270,7 @@ class ServerActions:
                 json.dumps(data))
             client.sendResult({"error": "wrong message format"})
 
-        fromId = int(data['id'])
+        fromId = self.registry.getId((data['id']))
         msg = str(data['msg'])
 
         if not self.registry.userExists(fromId):
@@ -295,7 +300,7 @@ class ServerActions:
                 json.dumps(data))
             client.sendResult({"error": "wrong request format"})
 
-        fromId = int(data["id"])
+        fromId = self.registry.getId((data["id"]))
         msg = str(data['msg'])
         receipt = str(data['receipt'])
 
@@ -314,7 +319,7 @@ class ServerActions:
                 json.dumps(data))
             client.sendResult({"error": "wrong message format"})
         
-        fromId = int(data['id'])
+        fromId = self.registry.getId((data['id']))
         msg = str(data["msg"])
 
         if(not self.registry.copyExists(fromId, msg)):
