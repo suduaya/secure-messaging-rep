@@ -370,7 +370,6 @@ class Client:
         self.modulus_prime = MODULUS_PRIME
         self.privNum = privateNumber()
         self.pubNum =  get_pubNum(self.primitive_root, self.privNum, self.modulus_prime)
-        #print self.pubNum
         data = {
                 "type" : "dh",
                 "phase": int(phase),
@@ -380,14 +379,6 @@ class Client:
                 "Client_pubNum" : int(self.pubNum),
         }
         self.send(data)
-
-    # Get internal id
-    def getMyId(self):
-    	data = {
-    			"type" : "getMyId",
-    			"id"   : self.uuid,
-    	}
-    	self.send(data)
 
     # Message status
     def status(self, msgNr):
@@ -400,11 +391,10 @@ class Client:
 
     # Message receipt
     def receipt(self, msgNr):
-        #sender = int(self.mail[msgNr][0])
         data = {
                 "type" : "receipt",
                 "id"   : self.uuid,
-                "msg"  : self.mail[int(msgNr)-1],
+                "msg"  : self.mail[int(msgNr)],
                 "receipt": "wtf",
         }
         self.send(data)
@@ -422,7 +412,7 @@ class Client:
     def recvMessage(self, msgNr):
         data = {
                 "type": "recv",
-                "id"  : self.uuid,
+                "uuid"  : self.uuid,
                 "msg" : self.mail[msgNr],
                 }
         self.send(data)
@@ -431,7 +421,7 @@ class Client:
     def listAllMessages(self):
         data = {
                 "type": "all",
-                "id": self.uuid,
+                "uuid": self.uuid,
                 }
         self.send(data)
 
@@ -471,20 +461,26 @@ class Client:
                 print "Error! Not connected!"
 
         if self.state == CONNECTED:
+            # Secure Messages with Session Key
             if dict_['type'] == 'list' or dict_['type'] == 'send' \
                 or dict_['type'] == 'getMyId' or dict_['type'] == 'all' or dict_['type'] == 'new' \
                 or dict_['type'] == 'recv' or dict_['type'] == 'dh' or dict_['type'] == 'status' or dict_['type'] == 'receipt':
                 try:
-                    message = (json.dumps(dict_))
+                    # Pronto para encapsular
+                    message = (json.dumps(dict_))   
 
-                    #(messageCiphered, symKeyCiphered) = self.secureMessage_Cipher('cipher', message, self.serverPubKey)
-
+                    # Calcular nova chave derivada
+                    # salt
                     salt = security.get_symmetricKey(256)
                     self.salt = salt
+                    # Gerar derivada baseada no salt
                     kdf_key = security.kdf(str(self.sharedKey), self.salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
                     self.kdf_key = kdf_key
+
+                    # Cifrar conteudo
                     sending =  security.AES(message, kdf_key)
 
+                    # Encapsulamento
                     data = {
                             "type": "secure",
                             "content": base64.b64encode(sending),
@@ -496,7 +492,7 @@ class Client:
                 except Exception:
                     pass
             else:
-                print "Error! dunno!"
+                print "Error while securing your message! Sorry! Quitting Client ..."
             
 
     # Disconnects

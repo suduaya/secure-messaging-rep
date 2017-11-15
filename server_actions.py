@@ -37,33 +37,31 @@ class ServerActions:
             'create': self.processCreate,
             'receipt': self.processReceipt,
             'status': self.processStatus,
-            'getMyId': self.processGetMyID,
             'dh': self.processDH,
             'secure': self.processSecure,
         }
-
+        # Registry
         self.registry = ServerRegistry()
+
+        # Par de Chaves Assimetricas
         self.pubKey, self.privKey = security.get_keys()
-        self.client_pubKey = None
 
     def secureMessage_Cipher(self, operation, data, data_key=None):
+        """Hybrid Ciphering
+        """
         if operation == 'cipher':
-            print "chipering"
             symKey = security.get_symmetricKey(256)
             instance = RSA.importKey(data_key)
 
             a = security.AES(message=data, key=symKey)
             b = security.rsaCipher(message=symKey, key=instance)
-
             return a, b  # data ciphered with symKey, symKey ciphered with server pubKey
 
         if operation == 'decipher':
-            print "deciphering"
             instance = RSA.importKey(self.privKey)
 
             b = security.rsaDecipher(message=data_key, key=instance)
             a = security.D_AES(symKey=b, message=data)
-
             return a
 
     def handleRequest(self, s, request, client):
@@ -98,16 +96,20 @@ class ServerActions:
             logging.exception("Could not handle request")
 
     def processSecure(self, data, client):
-
-        print "PROCESS SECURE"
+        """ Process Message with type field "secure"
+        """
         client.client_pubKey = data['Client_pubkey']
         content = base64.b64decode(data['content'])
         client.salt = base64.b64decode(data['salt'])
 
+        # Compute Derivated key
         kdf_key = security.kdf(str(client.sharedKey), client.salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
+        
+        # Decipher Request
         dataFinal = security.D_AES(message= content, symKey= kdf_key)
         req = json.loads(dataFinal)
 
+        # Handle Request
         if req['type'] in dataFinal:
                 self.messageTypes[req['type']](req, client)
         return
@@ -121,8 +123,7 @@ class ServerActions:
             client.sendResult({"error": "wrong message format"})
             return
 
-        uuid = data['uuid']
-        #pubKey = data['pubKey'] #ja esta na data = description
+        uuid = data['uuid'] # username
 
         '''
         if not isinstance(uuid, int):
@@ -141,33 +142,26 @@ class ServerActions:
             client.sendResult({"error": "uuid already exists"})
             return
 
+        # Adiciona novo user
         me = self.registry.addUser(data)
         client.id = me.id
-        #aceder a pubkey de um cliente
-        #print self.registry.users[client.id]['description']['pubKey']
         client.sendResult({"resultCreate": me.id})
-
-    def processGetMyID(self, data, client):
-        myid = data['id']
-
-        userList = self.registry.getMyId(data)
-        client.sendResult({"result": userList})
 
 
     def processDH(self, data, client):
-        client.uuid = data['uuid']
-        client.id = self.registry.getId(data['uuid'])
+        client.uuid = data['uuid']                      # username = uuid
+        client.id = self.registry.getId(data['uuid'])   # uuid -> traducao para ID
         phase = int(data['phase'])
         client.modulus_prime = data['modulus_prime']
         client.primitive_root = data['primitive_root']
         client.client_pubNum = int(data['Client_pubNum'])
         client.svPrivNum = privateNumber()
 
+        # Compute Shared Key
         client.svPubNum = int(pow(client.primitive_root, client.svPrivNum, client.modulus_prime))
         new_sharedKey = int(pow(client.client_pubNum, client.svPrivNum, client.modulus_prime))
         client.sharedKey = new_sharedKey 
 
-        #print new_sharedKey
         if not self.registry.userDirExists(client.uuid):
             log(logging.ERROR, "User doesnt exists: " + json.dumps(data))
             client.sendResult({"error": "uuid doenst exists"})
@@ -179,6 +173,7 @@ class ServerActions:
                                     },
                             "server_pubkey" : self.pubKey,
                         })
+        # Change Client Status
         client.status = CONNECTED
 
 
@@ -218,9 +213,9 @@ class ServerActions:
 
         user = -1
 
-        # recebe o uuid, vai buscar o id
-        if 'id' in data.keys():
-            user = self.registry.getId((data['id']))
+        # uuid -> traducao para ID
+        if 'uuid' in data.keys():
+            user = self.registry.getId((data['uuid']))
 
         if user < 0:
             log(logging.ERROR,
@@ -238,10 +233,10 @@ class ServerActions:
                 "Badly formated \"send\" message: " + json.dumps(data))
             client.sendResult({"error": "wrong message format"})
 
-        srcId = self.registry.getId((data['src'])) 
-        dstId = self.registry.getId((data['dst']))
-        msg = data['msg']
+        srcId = self.registry.getId((data['src']))  # uuid -> traducao para ID
+        dstId = self.registry.getId((data['dst']))  # uuid -> traducao para ID
 
+        msg = data['msg']
         copy = data['copy']
 
         if not self.registry.userExists(srcId):
@@ -257,9 +252,7 @@ class ServerActions:
             return
 
         # Save message and copy
-
         response = self.registry.sendMessage(srcId, dstId, msg, copy)
-
         client.sendResult({"resultSend": response})
 
     def processRecv(self, data, client):
@@ -270,7 +263,7 @@ class ServerActions:
                 json.dumps(data))
             client.sendResult({"error": "wrong message format"})
 
-        fromId = self.registry.getId((data['id']))
+        fromId = self.registry.getId((data['uuid'])) # uuid -> traducao para ID
         msg = str(data['msg'])
 
         if not self.registry.userExists(fromId):
@@ -286,10 +279,7 @@ class ServerActions:
             return
 
         # Read message
-
         response = self.registry.recvMessage(fromId, msg)
-        print response
-        print type(response)
         client.sendResult({"resultRecv": response})
 
     def processReceipt(self, data, client):
