@@ -72,7 +72,7 @@ class Client:
         logging.info(bcolors.OKBLUE+"Client listening on"+bcolors.ENDC+"%s", self.ss.getsockname())
         self.myConnections = {}
         self.inputs = []        # Sockets from which we expect to read
-        self.uuid = "suduaya"
+        self.uuid = "dreamingsun"
         self.id = None
         self.bufin = ""
         self.bufout = ""
@@ -334,8 +334,16 @@ class Client:
         kdf_key = self.kdf_key
         content = req['content'] #mensagem
         content_decoded = base64.b64decode(content)
+        HMAC_msg = base64.b64decode(req['HMAC'])                              # Read HMAC
         dataFinal = security.D_AES(message= content_decoded, symKey= kdf_key) #decifrar conteudo da mensagem e obter a original
-        return dataFinal
+        HMAC_new = (HMAC.new(key=kdf_key, msg=dataFinal, digestmod=SHA512)).hexdigest() # Criar novo HMAC com o texto recebido e comparar integridade
+
+        if (HMAC_new == HMAC_msg) :
+            print "Integrity Checked Sucessfully"
+            return dataFinal
+        else:
+            print "Message forged! Sorry! Aborting ..."
+            return
 
     def loop(self):
         """
@@ -480,12 +488,15 @@ class Client:
                     # Cifrar conteudo
                     sending =  security.AES(message, kdf_key)
 
+                    # HMAC
+                    HMAC_msg = (HMAC.new(key=kdf_key, msg=message, digestmod=SHA512)).hexdigest()
                     # Encapsulamento
                     data = {
-                            "type": "secure",
-                            "content": base64.b64encode(sending),
-                            "salt" : base64.b64encode(salt),
-                            "Client_pubkey": self.pubKey,
+                            "type"          : "secure",
+                            "content"       : base64.b64encode(sending),
+                            "salt"          : base64.b64encode(salt),
+                            "Client_pubkey" : self.pubKey,
+                            "HMAC"          : base64.b64encode(HMAC_msg),
                         }
 
                     self.ss.send(json.dumps(data)+TERMINATOR)

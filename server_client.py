@@ -73,11 +73,12 @@ class Client:
         kdf_key = security.kdf(str(self.sharedKey), self.salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
         ciphered =  security.AES(message, kdf_key)
         ciphered_b = base64.b64encode(ciphered)
-
+        HMAC_msg = base64.b64encode((HMAC.new(key=kdf_key, msg=message, digestmod=SHA512)).hexdigest())
 
         secure = {
-                    "type" : "secure",
+                    "type"   : "secure",
                     "content": ciphered_b,
+                    "HMAC"   : HMAC_msg,
         }
 
         return json.dumps(secure) #string

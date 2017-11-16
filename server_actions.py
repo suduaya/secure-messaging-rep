@@ -101,13 +101,21 @@ class ServerActions:
         client.client_pubKey = data['Client_pubkey']
         content = base64.b64decode(data['content'])
         client.salt = base64.b64decode(data['salt'])
-
+        HMAC_msg = base64.b64decode(data['HMAC'])
         # Compute Derivated key
         kdf_key = security.kdf(str(client.sharedKey), client.salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
         
         # Decipher Request
         dataFinal = security.D_AES(message= content, symKey= kdf_key)
         req = json.loads(dataFinal)
+
+        HMAC_new = (HMAC.new(key=kdf_key, msg=dataFinal, digestmod=SHA512)).hexdigest() # Criar novo HMAC com o texto recebido e comparar integridade
+
+        if (HMAC_new == HMAC_msg) :
+            print "Integrity Checked Sucessfully"
+        else:
+            print "Message forged! Sorry! Aborting ..."
+            return
 
         # Handle Request
         if req['type'] in dataFinal:

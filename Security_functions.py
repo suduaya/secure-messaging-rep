@@ -59,93 +59,11 @@ class Security:
     def rsaDecipher(self, message, key):
         dsize = SHA.digest_size
         ciphered_key = base64.b64decode(message)
-        sentinel = Random.new().read(len(ciphered_key) / 2 + dsize)  # Let's assume that average data length is 15
+        flag = Random.new().read(len(ciphered_key) / 2 + dsize)  # Let's assume that average data length is 15
         cipher = PKCS1_v1_5.new(key)
-        symmetric_key = cipher.decrypt(ciphered_key, sentinel)
+        symmetric_key = cipher.decrypt(ciphered_key, flag)
         return symmetric_key[:-dsize]
 
-    ##################################################HASH##############################################################
-    # gerar novo [hmac(key, message) + mensagem]
-    def HMAC_SHA(self, key, message, digestSize):   # estamos a usar digestsize = 64 => SHA512
-        message_b = bytes(message)
-        digestSize = int(digestSize)
-        if digestSize == 20:
-            hash = (HMAC.new(key=key, msg=message_b, digestmod=SHA)).hexdigest() + message_b
-            return hash
-        if digestSize == 28:
-            hash = (HMAC.new(key=key, msg=message_b, digestmod=SHA224)).hexdigest() + message_b
-            return hash
-        if digestSize == 32:
-            hash = (HMAC.new(key=key, msg=message_b, digestmod=SHA256)).hexdigest() + message_b
-            return hash
-        if digestSize == 48:
-            hash = (HMAC.new(key=key, msg=message_b, digestmod=SHA384)).hexdigest() + message_b
-            return hash
-        if digestSize == 64:
-            hash = (HMAC.new(key=key, msg=message_b, digestmod=SHA512)).hexdigest() + message_b
-            return hash
-
-    def check_HMAC(self, key, message, digestSize):
-        # https://stackoverflow.com/questions/46311990/hmac-in-message-vs-hmac-in-digest
-        #a[0] = [:h.digestSize*2] = get the hmac
-        #a[1] = [h.digestSize*2:] = get the data message
-        digestSize = int(digestSize)
-        msg = bytes(message)
-        if digestSize == 64:
-            a = [msg[i:i + (digestSize*2)] for i in range(0, len(msg), (digestSize*2))] # split into hmac and text
-            fullmsg = ''
-            for i in a[1:]: # build message
-                fullmsg += str(i)
-            return (True, fullmsg) if a[0] == ((HMAC.new(key=key, msg=str(fullmsg), digestmod=SHA512)).hexdigest()) else (
-                False, [])
-        if digestSize == 48:
-            a = [msg[i:i + (digestSize*2)] for i in range(0, len(msg), (digestSize*2))]
-            fullmsg = ''
-            for i in a[1:]:
-                fullmsg += str(i)
-            return (True, fullmsg) if a[0] == ((HMAC.new(key=key, msg=str(fullmsg), digestmod=SHA384)).hexdigest()) else (
-                False, [])
-        if digestSize == 32:
-            a = [msg[i:i + (digestSize*2)] for i in range(0, len(msg), (digestSize*2))]
-            fullmsg = ''
-            for i in a[1:]:
-                fullmsg += str(i)
-            return (True, fullmsg) if a[0] == ((HMAC.new(key=key, msg=str(fullmsg), digestmod=SHA256)).hexdigest()) else (
-                False, [])
-        if digestSize == 28:
-            a = [msg[i:i + (digestSize*2)] for i in range(0, len(msg), (digestSize*2))]
-            fullmsg = ''
-            for i in a[1:]:
-                fullmsg += str(i)
-            return (True, fullmsg) if a[0] == ((HMAC.new(key=key, msg=str(fullmsg), digestmod=SHA224)).hexdigest()) else (
-                False, [])
-        if digestSize == 20:
-            a = [msg[i:i + (digestSize*2)] for i in range(0, len(msg), (digestSize*2))]
-            fullmsg = ''
-            for i in a[1:]:
-                fullmsg += str(i)
-            return (True, fullmsg) if a[0] == ((HMAC.new(key=key, msg=str(fullmsg), digestmod=SHA)).hexdigest()) else (
-                False, [])
-
-    # gera apenas o HMAC retornado de um request
-    def HMAC_ONLY(self, key, message, digestSize):  # estamos a usar digestsize = 64 => SHA512
-        message_b = bytes(message)
-        digestSize = int(digestSize)
-        if digestSize == 20:
-            hash = (HMAC.new(key=key, msg=message_b, digestmod=SHA)).hexdigest()
-            return hash
-        if digestSize == 28:
-            hash = (HMAC.new(key=key, msg=message_b, digestmod=SHA224)).hexdigest()
-            return hash
-        if digestSize == 32:
-            hash = (HMAC.new(key=key, msg=message_b, digestmod=SHA256)).hexdigest()
-            return hash
-        if digestSize == 48:
-            hash = (HMAC.new(key=key, msg=message_b, digestmod=SHA384)).hexdigest()
-            return hash
-        if digestSize == 64:
-            hash = (HMAC.new(key=key, msg=message_b, digestmod=SHA512)).hexdigest()
-            return hash
     
     # key derivation function check
     #https://www.dlitz.net/software/pycrypto/api/2.6/Crypto.Protocol.KDF-module.html
