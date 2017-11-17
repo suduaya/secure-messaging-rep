@@ -46,8 +46,10 @@ class ServerActions:
         # Par de Chaves Assimetricas
         self.pubKey, self.privKey = security.get_keys()
 
-    def secureMessage_Cipher(self, operation, data, data_key=None):
-        """Hybrid Ciphering
+    def hybrid(self, operation, data, data_key=None):
+        """
+        Function used to cipher/decipher requests, generates symetric 
+        key and ciphers with pubKey of dst or deciphers with my privKey
         """
         if operation == 'cipher':
             symKey = security.get_symmetricKey(256)
@@ -55,6 +57,7 @@ class ServerActions:
 
             a = security.AES(message=data, key=symKey)
             b = security.rsaCipher(message=symKey, key=instance)
+
             return a, b  # data ciphered with symKey, symKey ciphered with server pubKey
 
         if operation == 'decipher':
@@ -62,6 +65,7 @@ class ServerActions:
 
             b = security.rsaDecipher(message=data_key, key=instance)
             a = security.D_AES(symKey=b, message=data)
+            
             return a
 
     def handleRequest(self, s, request, client):
@@ -98,10 +102,11 @@ class ServerActions:
     def processSecure(self, data, client):
         """ Process Message with type field "secure"
         """
-        client.client_pubKey = data['Client_pubkey']
+        client.client_pubKey = base64.b64decode(data['client_pubkey'])
         content = base64.b64decode(data['content'])
         client.salt = base64.b64decode(data['salt'])
         HMAC_msg = base64.b64decode(data['HMAC'])
+
         # Compute Derivated key
         kdf_key = security.kdf(str(client.sharedKey), client.salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
         
@@ -109,15 +114,17 @@ class ServerActions:
         dataFinal = security.D_AES(message= content, symKey= kdf_key)
         req = json.loads(dataFinal)
 
+        # Create HMAC
         HMAC_new = (HMAC.new(key=kdf_key, msg=dataFinal, digestmod=SHA512)).hexdigest() # Criar novo HMAC com o texto recebido e comparar integridade
 
+        # Checking integrity
         if (HMAC_new == HMAC_msg) :
             print "Integrity Checked Sucessfully"
         else:
             print "Message forged! Sorry! Aborting ..."
             return
 
-        # Handle Request
+        # Handling Request
         if req['type'] in dataFinal:
                 self.messageTypes[req['type']](req, client)
         return

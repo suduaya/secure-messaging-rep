@@ -70,33 +70,45 @@ class Client:
         self.ss = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.ss.connect((host, port))
         logging.info(bcolors.OKBLUE+"Client listening on"+bcolors.ENDC+"%s", self.ss.getsockname())
-        self.myConnections = {}
         self.inputs = []        # Sockets from which we expect to read
+
+        # Login stuff
         self.uuid = "dreamingsun"
         self.id = None
+
+        # Buffers
         self.bufin = ""
         self.bufout = ""
-        self.mail = {}
-        self.outmail= {}
+        self.mail = {}   # inbox
+        self.outmail= {} # outbox
         self.Users = []  # user id, uuid, pubkeys
+
+        # Key Pairs
         self.pubKey, self.privKey = security.get_keys()
-        self.modulus_prime = MODULUS_PRIME
-        self.primitive_root = PRIMITIVE_ROOT
-        self.pubNum = None
-        self.privNum = None
-        self.sharedKey = None
+
+        # Server
         self.serverPubKey = None
         self.serverPubNum = None
-        self.salt = None
+        
+        # Connection
+        self.pubNum = None
+        self.privNum = None
+        self.modulus_prime = MODULUS_PRIME
+        self.primitive_root = PRIMITIVE_ROOT
         self.state = NOT_CONNECTED
-        ## flag
+        self.salt = None
+        self.sharedKey = None
+
+        # Flag de sincronizacao inicial
         self.sync = True
 
-    # Function used to chiper/decipher requests, generates symetric key and ciphers with pubKey of dst
-    # or deciphers with my privKey
-    def secureMessage_Cipher(self, operation, data, data_key=None):
+
+    def hybrid(self, operation, data, data_key=None):
+        """
+        Function used to cipher/decipher requests, generates symetric 
+        key and ciphers with pubKey of dst or deciphers with my privKey
+        """
         if operation == 'cipher':
-            #print "ciphering"
             symKey = security.get_symmetricKey(256)
             instance = RSA.importKey(data_key)
 
@@ -106,7 +118,6 @@ class Client:
             return a, b  # data ciphered with symKey, symKey ciphered with server pubKey
 
         if operation == 'decipher':
-            #print "deciphering"
             instance = RSA.importKey(self.privKey)
 
             b = security.rsaDecipher(message=data_key, key=instance)
@@ -132,6 +143,10 @@ class Client:
         return reqs[:-1]
 
     def getUUID(self, idd):
+        """
+        Translation between id to uuid,
+        give an id, returns respective uuid
+        """
         for x in self.Users:
             y = dict(x)
             if y['id'] == int(idd):
@@ -149,7 +164,6 @@ class Client:
         self.outbox=[]
         try:
             #logging.info("HANDLING message from server: %r", repr(request))
-
             try:
                 req = json.loads(request)
             except:
@@ -208,6 +222,7 @@ class Client:
                 print bcolors.WARNING +"(/recv   <msg_number>)" + bcolors.ENDC + "  Read message"
                 print bcolors.WARNING +"(/status <msg_number>)" + bcolors.ENDC + "  Check Receipt Status"
                 print bcolors.WARNING +"(<)                   " + bcolors.ENDC + "  go back to main menu"
+
                 self.mail = dict(zip(range(1,len(self.mailBox)+1), self.mailBox))
                 self.outmail = dict(zip(range(1,len(self.outbox)+1), self.outbox))
 
@@ -220,9 +235,7 @@ class Client:
                 print req
                 return
 
-            if 'resultDH' in req:       #connect
-                #os.system('clear')
-                #self.show_menu()
+            if 'resultDH' in req:       #connect to server
                 self.serverPubNum = int(req['resultDH']['Server_pubNum'])
                 self.serverPubKey = req['server_pubkey']
                 self.sharedKey = int(pow(self.serverPubNum,self.privNum, self.modulus_prime))
@@ -273,10 +286,6 @@ class Client:
 
             if 'type' not in req:
                 return
-
-            if req['type'] == 'connect':
-                return
-
 
 
         except Exception, e:
@@ -334,10 +343,17 @@ class Client:
         kdf_key = self.kdf_key
         content = req['content'] #mensagem
         content_decoded = base64.b64decode(content)
-        HMAC_msg = base64.b64decode(req['HMAC'])                              # Read HMAC
-        dataFinal = security.D_AES(message= content_decoded, symKey= kdf_key) #decifrar conteudo da mensagem e obter a original
+
+        # Read HMAC
+        HMAC_msg = base64.b64decode(req['HMAC'])
+
+        # Conteudo da mensagem
+        dataFinal = security.D_AES(message= content_decoded, symKey= kdf_key) 
+        
+        # Creating new HMAC
         HMAC_new = (HMAC.new(key=kdf_key, msg=dataFinal, digestmod=SHA512)).hexdigest() # Criar novo HMAC com o texto recebido e comparar integridade
 
+        # Checking Integrity
         if (HMAC_new == HMAC_msg) :
             print "Integrity Checked Sucessfully"
             return dataFinal
@@ -412,7 +428,6 @@ class Client:
         data = {
                 "type": "create",
                 "uuid": self.uuid,
-                "pubKey" : self.pubKey,
                 }
         self.send(data)
 
@@ -460,7 +475,7 @@ class Client:
     # Verificacao do tipo de mensagem e envio (socket.send)
     def send(self, dict_):
         if self.state == NOT_CONNECTED:
-            if dict_['type'] == 'dh' or dict_['type'] == 'create':
+            if dict_['type'] == 'dh' or dict_['type'] == 'create':          # Connect e Create
                 try:
                     self.ss.send((json.dumps(dict_))+TERMINATOR)
                 except Exception:
@@ -488,15 +503,15 @@ class Client:
                     # Cifrar conteudo
                     sending =  security.AES(message, kdf_key)
 
-                    # HMAC
+                    # Gerar HMAC (mensagem, derivated key)
                     HMAC_msg = (HMAC.new(key=kdf_key, msg=message, digestmod=SHA512)).hexdigest()
                     # Encapsulamento
                     data = {
                             "type"          : "secure",
                             "content"       : base64.b64encode(sending),
                             "salt"          : base64.b64encode(salt),
-                            "Client_pubkey" : self.pubKey,
                             "HMAC"          : base64.b64encode(HMAC_msg),
+                            "client_pubkey" : base64.b64encode(self.pubKey)
                         }
 
                     self.ss.send(json.dumps(data)+TERMINATOR)
@@ -508,11 +523,10 @@ class Client:
 
     # Disconnects
     def stop(self):
-        for client in self.myConnections.keys():
-            try:
-                self.disconnect_client("Client Stopped for some reason. Sorry...", client)
-            except:
-                print "Erro!"
+        try:
+            self.disconnect_client("Client Stopped for some reason. Sorry...", client)
+        except:
+            print "Erro!"
         logging.info("Stopping Client")
         try:
             self.ss.close()

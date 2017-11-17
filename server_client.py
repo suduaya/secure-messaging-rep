@@ -70,9 +70,16 @@ class Client:
         return reqs[:-1]
     
     def processSecure(self, message):
+        # Derivated from Session Key
         kdf_key = security.kdf(str(self.sharedKey), self.salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
+
+        # Ciphering message
         ciphered =  security.AES(message, kdf_key)
+
+        # Encoding ciphered message
         ciphered_b = base64.b64encode(ciphered)
+
+        # Generate HMAC (message, derivated Key)
         HMAC_msg = base64.b64encode((HMAC.new(key=kdf_key, msg=message, digestmod=SHA512)).hexdigest())
 
         secure = {
@@ -81,7 +88,7 @@ class Client:
                     "HMAC"   : HMAC_msg,
         }
 
-        return json.dumps(secure) #string
+        return json.dumps(secure) #string format
 
     def sendResult(self, message):
         """Send an object to this client.
