@@ -1,5 +1,6 @@
 import select, socket, sys
 import json
+import sys
 import ast
 import time, base64
 import random
@@ -11,7 +12,7 @@ from Crypto.PublicKey import RSA
 from string import ascii_lowercase
 from Security_functions import Security
 from Crypto.Protocol.KDF import PBKDF1
-
+import time
 
 security = Security()   # security module
 HOST = "localhost"   # All available interfaces
@@ -73,7 +74,8 @@ class Client:
         self.inputs = []        # Sockets from which we expect to read
 
         # Login stuff
-        self.uuid = "dreamingsun"
+        #self.uuid = "suduaya"
+        self.uuid = str(sys.argv[1])
         self.id = None
 
         # Buffers
@@ -137,7 +139,7 @@ class Client:
             self.bufin = ""
 
         self.bufin += data
-        reqs = self.bufin.split('\n\n')	
+        reqs = self.bufin.split('\n\n') 
         self.bufin = reqs[-1]
 
         return reqs[:-1]
@@ -194,7 +196,7 @@ class Client:
 
                 self.mailBox = self.newMails + self.inbox   # ordered
 
-                print bcolors.OKGREEN + bcolors.BOLD + "        Mensagens (Inbox/Outbox): " + bcolors.ENDC
+                print bcolors.OKGREEN + bcolors.BOLD + "            Mensagens (Inbox/Outbox): " + bcolors.ENDC
                 print bcolors.WARNING + str(len(self.mailBox)) + " Received Messages: " + bcolors.ENDC
                 if len(self.mailBox) == 0:
                         print "You didnt received any message yet.\n"
@@ -232,7 +234,27 @@ class Client:
                 return
 
             if 'resultStatus' in req:
-                print req
+                os.system('clear')
+                #print req
+                print bcolors.HEADER + bcolors.BOLD + "                 Receipt Status " + bcolors.ENDC
+                if req['resultStatus']['receipts'] != []: # mensagem lida
+                    print bcolors.OKGREEN + bcolors.BOLD + "Sent to: " + bcolors.ENDC + str(self.getUUID(req['resultStatus']['receipts'][0]['id']))
+                    print bcolors.WARNING + bcolors.BOLD + "Your Message: " + bcolors.ENDC
+                    print req['resultStatus']['msg']
+                    print "\n" 
+                    timestamp = req['resultStatus']['receipts'][0]['date']
+                    print bcolors.OKGREEN + "(Read at "+ str(time.ctime(int(timestamp) / 1000)) +"): " +bcolors.ENDC
+                    print bcolors.WARNING + bcolors.BOLD + "Signature: " +bcolors.ENDC
+                    print req['resultStatus']['receipts'][0]['receipt']
+                    print "\n"
+                else:
+                    print bcolors.WARNING + bcolors.BOLD + "Your Message: " + bcolors.ENDC
+                    print req['resultStatus']['msg']
+                    print "\n" 
+                    print bcolors.WARNING + bcolors.FAIL + "The message has not been read yet! " +bcolors.ENDC
+                print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
+                print bcolors.WARNING +"(/all)    " + bcolors.ENDC + "Return to Message Box"
+                print bcolors.WARNING +"(<)       " + bcolors.ENDC + "Return to Main Menu"
                 return
 
             if 'resultDH' in req:       #connect to server
@@ -262,7 +284,7 @@ class Client:
                 
                 if self.sync == False:
                     os.system('clear')
-                    print bcolors.OKGREEN + bcolors.BOLD + "        MessageBoxes List (users): \n" + bcolors.ENDC
+                    print bcolors.OKGREEN + bcolors.BOLD + "            MessageBoxes List (users): \n" + bcolors.ENDC
                     print bcolors.WARNING+"Hello Mr." + bcolors.FAIL+ str(self.uuid) +bcolors.WARNING+"! This is a list of users which you can communicate!"+bcolors.ENDC+"\n"
                 for x in req['resultList']:
                     aux = {}
@@ -536,7 +558,7 @@ class Client:
     
     # Menu inicial
     def show_menu(self):
-        print bcolors.HEADER + bcolors.BOLD + "     Secure Messaging Repository System\n" + bcolors.ENDC
+        print bcolors.HEADER + bcolors.BOLD + "             Secure Messaging Repository System\n" + bcolors.ENDC
 
         print bcolors.WARNING + "(/create)                 " + bcolors.ENDC + "Create a User Message Box\n" + \
               bcolors.WARNING + "(/connect)                " + bcolors.ENDC + "Connect to User Message Box\n" + \
