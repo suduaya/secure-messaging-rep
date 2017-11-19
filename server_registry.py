@@ -148,7 +148,7 @@ class ServerRegistry:
         for k in self.users.keys():
             userList.append({
                              'id': k,
-                             'description' : self.users[k].description 
+                             'description' : self.users[k].description,
                              }) # retorna id, not uuid
             #userList.append(self.users[k].description)
 

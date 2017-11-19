@@ -139,6 +139,7 @@ class ServerActions:
             return
 
         uuid = data['uuid'] # username
+        publicKey = data['Client_pubKey']
 
         '''
         if not isinstance(uuid, int):

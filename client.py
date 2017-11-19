@@ -131,6 +131,21 @@ class Client:
             print  "Couldnt load keys! "
         return False
 
+    def saveKeys(self):
+        self.pubKey, self.privKey = security.get_keys(self.passphrase)
+        try:
+            os.mkdir(self.myDirPath)
+        except:
+            logging.exception("Cannot create directory")
+        # save keys before logging out
+        keys = {
+                "pub" : self.pubKey,
+                "priv": self.privKey,
+        }
+        # into file, client dir
+        self.saveOnFile(self.myDirPath + "/key", json.dumps(keys))
+        return
+
     def hybrid(self, operation, data, data_key=None):
         """
         Function used to cipher/decipher requests, generates symetric 
@@ -333,18 +348,6 @@ class Client:
 
             if 'resultCreate' in req:
                 self.id =  req['resultCreate']
-                self.pubKey, self.privKey = security.get_keys(clnt.passphrase)
-                try:
-                    os.mkdir(clnt.myDirPath)
-                except:
-                    logging.exception("Cannot create directory")
-                    # save keys before logging out
-                keys = {
-                        "pub" : self.pubKey,
-                        "priv": self.privKey,
-                }
-                # into file, client dir
-                self.saveOnFile(self.myDirPath + "/key", json.dumps(keys))
                 return
 
             if 'type' not in req:
@@ -463,7 +466,7 @@ class Client:
                 "uuid"   : self.uuid,
                 "primitive_root" : self.primitive_root,
                 "modulus_prime"  : self.modulus_prime,
-                "Client_pubNum" : int(self.pubNum),
+                "Client_pubNum"  : int(self.pubNum),
         }
         self.send(data)
 
@@ -488,9 +491,11 @@ class Client:
 
     # Create User Message Box
     def createUserMsgBox(self):
+        self.saveKeys()
         data = {
                 "type": "create",
                 "uuid": self.uuid,
+                "Client_pubKey"  : self.pubKey,
                 }
         self.send(data)
 
