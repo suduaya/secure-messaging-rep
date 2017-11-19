@@ -45,9 +45,9 @@ class Security:
         return unpad(msg)
 
     ################################################ASSYMETRIC##########################################################
-    def get_keys(self):     # RSA Key Pairs
+    def get_keys(self, passphrase=None):     # RSA Key Pairs
         new_key = RSA.generate(2048)
-        return (new_key.publickey().exportKey('PEM'),new_key.exportKey('PEM'))
+        return (new_key.publickey().exportKey(format='PEM'),new_key.exportKey(format='PEM', passphrase=passphrase))
 
     ## https://www.dlitz.net/software/pycrypto/api/2.6/
     def rsaCipher(self, message, key):

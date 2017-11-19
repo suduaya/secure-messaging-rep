@@ -13,43 +13,18 @@ import json
 
 security = Security()
 
-def secureMessage_Chiper(operation, data, data_key=None):
-    if operation == 'cipher':
-        symKey = security.get_symmetricKey(256)
-        instance = RSA.importKey(data_key)
-
-        a = security.AES(message=data, key=symKey)
-        b = security.rsaCipher(message=symKey, key=instance)
-
-        return a, b  # data ciphered with symKey, symKey ciphered with server pubKey
-
-    if operation == 'decipher':
-        instance = RSA.importKey(serverpriv)
-
-        b = security.rsaDecipher(message=data_key, key=instance)
-        a = security.D_AES(symKey=b, message=data)
-
-        return a
-
-# assymetric keys
-clientpub, clientpriv = security.get_keys()
-serverpub, serverpriv = security.get_keys()
+def get_keys(pw=None):     # RSA Key Pairs
+    new_key = RSA.generate(2048)
+    return (new_key.publickey().exportKey(format='PEM', passphrase= pw),new_key.exportKey(format='PEM', passphrase= pw))
 
 
-# msg sample
-message= {
-            "content" : "hello",
-        }
-print json.dumps(message)
+pub, priv = get_keys("password")
 
+print pub
+print priv
 
-#cifra
-a, b = secureMessage_Chiper('cipher', json.dumps(message), data_key=serverpub)
+instance = RSA.importKey(externKey= priv, passphrase= "password")
 
-
-#decifra
-dataFinal =  secureMessage_Chiper('decipher', data=a, data_key=b)
-print dataFinal
 
 
 

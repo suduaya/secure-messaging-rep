@@ -76,7 +76,9 @@ class Client:
         # Login stuff
         #self.uuid = "suduaya"
         self.uuid = str(sys.argv[1])
+        self.passphrase = str(sys.argv[2])
         self.id = None
+        self.myDirPath = "clients/" + str(self.uuid)
 
         # Buffers
         self.bufin = ""
@@ -86,7 +88,7 @@ class Client:
         self.Users = []  # user id, uuid, pubkeys
 
         # Key Pairs
-        self.pubKey, self.privKey = security.get_keys()
+        self.pubKey, self.privKey = None, None
 
         # Server
         self.serverPubKey = None
@@ -104,6 +106,30 @@ class Client:
         # Flag de sincronizacao inicial
         self.sync = True
 
+    def saveOnFile(self, path, data):
+        with open(path, "w") as f:
+            f.write(data)
+
+    def readFromFile(self, path):
+        with open(path, "r") as f:
+            return f.read()
+    def loadKeys(self):
+        try:
+            file = self.readFromFile(self.myDirPath + "/key")
+            keys = json.loads(file)
+            self.pubKey = keys['pub']
+            self.privKey = keys['priv']
+            try:
+                instance = RSA.importKey(self.privKey, self.passphrase)
+                print "Correct passphrase"
+                return True
+            except:
+                print bcolors.FAIL+"Wrong passphrase!" + bcolors.ENDC
+                return False
+            print "Keys loaded Sucessfully"
+        except:
+            print  "Couldnt load keys! "
+        return False
 
     def hybrid(self, operation, data, data_key=None):
         """
@@ -120,7 +146,7 @@ class Client:
             return a, b  # data ciphered with symKey, symKey ciphered with server pubKey
 
         if operation == 'decipher':
-            instance = RSA.importKey(self.privKey)
+            instance = RSA.importKey(self.privKey, self.passphrase)
 
             b = security.rsaDecipher(message=data_key, key=instance)
             a = security.D_AES(symKey=b, message=data)
@@ -262,6 +288,9 @@ class Client:
                 self.serverPubKey = req['server_pubkey']
                 self.sharedKey = int(pow(self.serverPubNum,self.privNum, self.modulus_prime))
                 self.state = CONNECTED
+                if not (self.loadKeys()):
+                    self.stop()
+                    return
                 print "Sucessfully Connected!"
                 self.listUserMsgBox()
                 return
@@ -304,6 +333,18 @@ class Client:
 
             if 'resultCreate' in req:
                 self.id =  req['resultCreate']
+                self.pubKey, self.privKey = security.get_keys(clnt.passphrase)
+                try:
+                    os.mkdir(clnt.myDirPath)
+                except:
+                    logging.exception("Cannot create directory")
+                    # save keys before logging out
+                keys = {
+                        "pub" : self.pubKey,
+                        "priv": self.privKey,
+                }
+                # into file, client dir
+                self.saveOnFile(self.myDirPath + "/key", json.dumps(keys))
                 return
 
             if 'type' not in req:
