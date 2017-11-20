@@ -106,6 +106,12 @@ class Client:
         # Flag de sincronizacao inicial
         self.sync = True
 
+    def getKeyByValue(self, value):
+        for k, v in self.mail.items():
+            if str(value) == v or isinstance(v, list) and str(value) in v:
+                return k
+        return None
+
     def saveOnFile(self, path, data):
         with open(path, "w") as f:
             f.write(data)
@@ -284,7 +290,7 @@ class Client:
                     print req['resultStatus']['msg']
                     print "\n" 
                     timestamp = req['resultStatus']['receipts'][0]['date']
-                    print bcolors.OKGREEN + "(Read at "+ str(time.ctime(int(timestamp) / 1000)) +"): " +bcolors.ENDC
+                    print bcolors.OKGREEN + "(Read at "+ str(time.ctime(int(timestamp) / 1000)) +")" +bcolors.ENDC
                     print bcolors.WARNING + bcolors.BOLD + "Signature: " +bcolors.ENDC
                     print req['resultStatus']['receipts'][0]['receipt']
                     print "\n"
@@ -311,16 +317,19 @@ class Client:
                 return
 
             if 'resultRecv' in req:
+                print req
                 os.system('clear')
                 source = req['resultRecv'][0]
                 msg = str(req['resultRecv'][1])
+                msg_nr = str(req['resultRecv'][2])
+                dict_id = self.getKeyByValue(msg_nr)  # indicates message in self.mail
                 print bcolors.OKGREEN + bcolors.BOLD + "Source: " + bcolors.ENDC + self.getUUID(str(source))
                 print bcolors.WARNING + bcolors.BOLD + "Message: " +bcolors.ENDC
                 print msg
                 print "\n"
                 print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
                 print bcolors.WARNING +"(<)    " + bcolors.ENDC + " go back to main menu"
-                self.receipt(int(source))
+                self.receipt(int(dict_id)) # errado
                 return               
 
             if 'resultList' in req:
@@ -504,7 +513,7 @@ class Client:
         data = {
                 "type": "recv",
                 "uuid"  : self.uuid,
-                "msg" : self.mail[msgNr],
+                "msg" : self.mail[int(msgNr)],
                 }
         self.send(data)
 

@@ -295,6 +295,7 @@ class ServerRegistry:
             logging.exception("Cannot read message " +
                               msg + " from user " + uid)
 
+        result.append(msg) #numero mensagem
         return result
 
     def userMessageBox(self, uid):
