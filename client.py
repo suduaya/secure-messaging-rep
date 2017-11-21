@@ -15,17 +15,18 @@ from Crypto.Protocol.KDF import PBKDF1
 import time
 
 security = Security()   # security module
-HOST = "localhost"   # All available interfaces
-PORT = 8080          # The server port
+HOST     = "localhost"   # All available interfaces
+PORT     = 8080          # The server port
 
-sys.tracebacklimit = 30
+#sys.tracebacklimit = 30
 
-TERMINATOR = "\r\n"
+TERMINATOR  = "\r\n"
 MAX_BUFSIZE = 64 * 1024
 
 # Connection status
-CONNECTED = 1
-NOT_CONNECTED = 2
+NOT_CONNECTED   = 10000
+CONNECTING      = 20000
+CONNECTED       = 30000
 
 
 # Mathematics
@@ -55,8 +56,6 @@ def get_id(length):
     while len(a) != int(length) and a[0]!='0':
         a = ''.join([str(random.randint(0, 9)) for i in range(8)])
     return int(a)
-
-
 
 # Client class
 class Client:
@@ -119,6 +118,7 @@ class Client:
     def readFromFile(self, path):
         with open(path, "r") as f:
             return f.read()
+
     def loadKeys(self):
         try:
             file = self.readFromFile(self.myDirPath + "/key")
@@ -277,9 +277,6 @@ class Client:
 
                 return
 
-            if 'resultNew' in req:
-                return
-
             if 'resultStatus' in req:
                 os.system('clear')
                 #print req
@@ -317,7 +314,6 @@ class Client:
                 return
 
             if 'resultRecv' in req:
-                print req
                 os.system('clear')
                 source = req['resultRecv'][0]
                 msg = str(req['resultRecv'][1])
@@ -462,7 +458,7 @@ class Client:
                     if len(input) > 0:
                         self.handleInput(input)
     
-    ## Client functions
+    ######################################## Client Messages ########################################
     #Start DiffieHelman key exchange
     def startDH(self, phase):
         self.primitive_root = PRIMITIVE_ROOT
@@ -549,6 +545,8 @@ class Client:
                 }
         self.send(data)
 
+    ##################################################################################################
+
     # Verificacao do tipo de mensagem e envio (socket.send)
     def send(self, dict_):
         if self.state == NOT_CONNECTED:
@@ -597,7 +595,6 @@ class Client:
             else:
                 print "Error while securing your message! Sorry! Quitting Client ..."
             
-
     # Disconnects
     def stop(self):
         try:
@@ -621,7 +618,6 @@ class Client:
               bcolors.WARNING + "(/all)                    " + bcolors.ENDC + "List All Messages\n" + "\n"+\
               bcolors.HEADER + bcolors.BOLD + "Command:" + bcolors.ENDC
         return
-
 
 if __name__ == "__main__":
     logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, formatter=logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
