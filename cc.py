@@ -179,4 +179,4 @@ def retrieveStatus(cert, mode):     # mode AUTHENTICATION ou SIGNATURE
 
 pem = certificate()
 
-print retrieveStatus(pem, "AUTHENTICATION")
+print retrieveStatus(pem, "SIGNATURE")

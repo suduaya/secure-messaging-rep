@@ -333,8 +333,9 @@ class Client:
                 
                 if self.sync == False:
                     os.system('clear')
-                    print bcolors.OKGREEN + bcolors.BOLD + "            MessageBoxes List (users): \n" + bcolors.ENDC
-                    print bcolors.WARNING+"Hello Mr." + bcolors.FAIL+ str(self.uuid) +bcolors.WARNING+"! This is a list of users which you can communicate!"+bcolors.ENDC+"\n"
+                    print bcolors.OKGREEN + bcolors.BOLD + "\tMessageBoxes List (users): \n" + bcolors.ENDC
+                    print bcolors.FAIL + "Hi "+ bcolors.WARNING + str(self.uuid) + bcolors.FAIL+", this is a list of users which you can exchange messages! \n"+bcolors.ENDC
+                    print bcolors.OKGREEN + bcolors.BOLD + "Available Users:" + bcolors.ENDC
                 for x in req['resultList']:
                     aux = {}
                     aux['id'] = x['id']
@@ -342,7 +343,7 @@ class Client:
                     arrayAux.append(aux)
                     if self.sync == False:
                         if (x['description']['uuid'] != (self.uuid)):
-                            print '         -> MessageBox id: '+bcolors.FAIL+str(x['id'])+bcolors.ENDC +"      (I'm Mr." +bcolors.FAIL + str(x['description']['uuid']) + bcolors.ENDC+ " !)"
+                            print bcolors.WARNING +'Username: ' +bcolors.ENDC + str(x['description']['uuid']) + "\tName: Joao" + "\tStatus: Online"
                 if self.sync == False:
                     print "\n"
                     print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
