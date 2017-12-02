@@ -25,6 +25,9 @@ class Security:
 
     def get_symmetricKey(self, bits):
         bits = int(bits)
+        if bits == 32:
+            key = bytes(''.join(random.choice(ascii_lowercase) for i in range(4)))  # random string 64 bits
+            return key
         if bits == 64:
             key = bytes(''.join(random.choice(ascii_lowercase) for i in range(8)))  # random string 64 bits
             return key

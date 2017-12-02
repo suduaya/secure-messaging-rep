@@ -87,7 +87,7 @@ class Client:
         self.Users = []  # user id, uuid, pubkeys
 
         # Key Pairs
-        self.pubKey, self.privKey = None, None
+        self.pubKey, self.privKey = security.get_keys()
 
         # Server
         self.serverPubKey = None
@@ -201,6 +201,16 @@ class Client:
             if y['id'] == int(idd):
                 return str(y['description']['uuid']) 
 
+    def getID(self, idd):
+        """
+        Translation between uuid to id,
+        give an id, returns respective uuid
+        """
+        for x in self.Users:
+            y = dict(x)
+            if y['description']['uuid'] == str(idd):
+                return str(y['id'])
+
     def handleRequest(self, request):
         """
         Faz o devido handle dos requests do servidor, 
@@ -306,17 +316,28 @@ class Client:
                 self.serverPubKey = req['server_pubkey']
                 self.sharedKey = int(pow(self.serverPubNum,self.privNum, self.modulus_prime))
                 self.state = CONNECTED
-                if not (self.loadKeys()):
+                '''if not (self.loadKeys()):
                     self.stop()
-                    return
+                    return'''
                 print "Sucessfully Connected!"
                 self.listUserMsgBox()
                 return
 
             if 'resultRecv' in req:
+                print req
                 os.system('clear')
                 source = req['resultRecv'][0]
-                msg = str(req['resultRecv'][1])
+                msg = req['resultRecv'][1]
+
+                msg = json.loads(msg)
+                
+                messageCiphered = base64.b64decode(msg['messageCiphered'])
+                symKeyCiphered = base64.b64decode(msg['symKeyCiphered'])
+
+
+                msg = self.hybrid(operation='decipher', data=str(messageCiphered), data_key=str(symKeyCiphered))
+                
+
                 msg_nr = str(req['resultRecv'][2])
                 dict_id = self.getKeyByValue(msg_nr)  # indicates message in self.mail
                 print bcolors.OKGREEN + bcolors.BOLD + "Source: " + bcolors.ENDC + self.getUUID(str(source))
@@ -497,7 +518,7 @@ class Client:
 
     # Create User Message Box
     def createUserMsgBox(self):
-        self.saveKeys()
+        #self.saveKeys()
         data = {
                 "type": "create",
                 "uuid": self.uuid,
@@ -536,12 +557,26 @@ class Client:
             sending += (str(t))
             sending += " "
         
-        print type(sending)
+        dstId = int(self.getID(dst)) - 1  # dict comeca em 0
+
+        # respectiva public key
+        dstPubKey = self.Users[dstId]['description']['Client_pubKey']
+        print self.Users[dstId]['description']
+
+        # cifra hibrida
+        messageCiphered, symKeyCiphered = self.hybrid('cipher', sending, dstPubKey)
+
+        # encapsulamento
+        dstMessage = json.dumps({
+                "messageCiphered": base64.b64encode(messageCiphered),
+                "symKeyCiphered" : base64.b64encode(symKeyCiphered),
+        })
+
         data = {
                 "type": "send",
                 "src": self.uuid,
                 "dst": dst,
-                "msg": sending,
+                "msg": dstMessage,
                 "copy": sending,        # beta
                 }
         self.send(data)
