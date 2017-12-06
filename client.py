@@ -87,7 +87,8 @@ class Client:
         self.Users = []  # user id, uuid, pubkeys
 
         # Key Pairs
-        self.pubKey, self.privKey = security.get_keys()
+        #self.pubKey, self.privKey = security.get_keys()
+        self.pubKey, self.privKey = None, None
 
         # Server
         self.serverPubKey = None
@@ -110,46 +111,38 @@ class Client:
             if str(value) == v or isinstance(v, list) and str(value) in v:
                 return k
         return None
-
-    def saveOnFile(self, path, data):
-        with open(path, "w") as f:
-            f.write(data)
-
-    def readFromFile(self, path):
-        with open(path, "r") as f:
-            return f.read()
-
+        
     def loadKeys(self):
+        # user path to keys
+        path = self.myDirPath + "/key.pem"
         try:
-            file = self.readFromFile(self.myDirPath + "/key")
-            keys = json.loads(file)
-            self.pubKey = keys['pub']
-            self.privKey = keys['priv']
-            try:
-                instance = RSA.importKey(self.privKey, self.passphrase)
-                print "Correct passphrase"
+            with open(path, "rb") as f:
+                key = RSA.importKey(f.read(), self.passphrase)
+                self.pubKey, self.privKey = key.publickey().exportKey(format='PEM'),key.exportKey(format='PEM', passphrase=self.passphrase)
+                #print self.pubKey
+                #print self.privKey
+                #print type(self.privKey)
+                print "Keys Sucessfully Loaded!"
                 return True
-            except:
-                print bcolors.FAIL+"Wrong passphrase!" + bcolors.ENDC
-                return False
-            print "Keys loaded Sucessfully"
         except:
-            print  "Couldnt load keys! "
+            print "Error! Wrong Passphrase! Aborting..."
+            return False
         return False
 
     def saveKeys(self):
         self.pubKey, self.privKey = security.get_keys(self.passphrase)
         try:
             os.mkdir(self.myDirPath)
+            print "User Dir(keys) created!"
         except:
-            logging.exception("Cannot create directory")
-        # save keys before logging out
-        keys = {
-                "pub" : self.pubKey,
-                "priv": self.privKey,
-        }
+            pass
+
         # into file, client dir
-        self.saveOnFile(self.myDirPath + "/key", json.dumps(keys))
+        path = self.myDirPath + "/key.pem"
+        data = self.privKey     # PEM already
+
+        with open(path, "wb") as f:
+            f.write(data)
         return
 
     def hybrid(self, operation, data, data_key=None):
@@ -316,6 +309,7 @@ class Client:
                 self.serverPubKey = req['server_pubkey']
                 self.sharedKey = int(pow(self.serverPubNum,self.privNum, self.modulus_prime))
                 self.state = CONNECTED
+                self.loadKeys()
                 '''if not (self.loadKeys()):
                     self.stop()
                     return'''
@@ -518,7 +512,7 @@ class Client:
 
     # Create User Message Box
     def createUserMsgBox(self):
-        #self.saveKeys()
+        self.saveKeys()
         data = {
                 "type": "create",
                 "uuid": self.uuid,
