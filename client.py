@@ -18,7 +18,6 @@ security = Security()   # security module
 HOST     = "localhost"   # All available interfaces
 PORT     = 8080          # The server port
 
-
 TERMINATOR  = "\r\n"
 MAX_BUFSIZE = 64 * 1024
 
@@ -37,7 +36,7 @@ def privateNumber():
     secret = random.getrandbits(256)
     return secret
 
-#Colours
+# Colours
 class bcolors:
     HEADER = '\033[95m'
     OKBLUE = '\033[94m'
@@ -283,11 +282,21 @@ class Client:
 
             if 'resultStatus' in req:
                 os.system('clear')
+                msg = req['resultStatus']['msg']
+                msg = json.loads(msg)
+
+                # parsing arguments to decipher
+                messageCiphered2 = base64.b64decode(msg['messageCiphered2'])
+                symKeyCiphered2 = base64.b64decode(msg['symKeyCiphered2'])
+
+                # decipher msg
+                msg = self.hybrid(operation='decipher', data=str(messageCiphered2), data_key=str(symKeyCiphered2))
+
                 print bcolors.HEADER + bcolors.BOLD + "                 Receipt Status " + bcolors.ENDC
                 if req['resultStatus']['receipts'] != []: # mensagem lida
                     print bcolors.OKGREEN + bcolors.BOLD + "Sent to: " + bcolors.ENDC + str(self.getUUID(req['resultStatus']['receipts'][0]['id']))
                     print bcolors.WARNING + bcolors.BOLD + "Your Message: " + bcolors.ENDC
-                    print req['resultStatus']['msg']
+                    print str(msg)
                     print "\n" 
                     # timestamp
                     timestamp = req['resultStatus']['receipts'][0]['date']
@@ -297,7 +306,7 @@ class Client:
                     print "\n"
                 else:
                     print bcolors.WARNING + bcolors.BOLD + "Your Message: " + bcolors.ENDC
-                    print req['resultStatus']['msg']
+                    print str(msg)
                     print "\n" 
                     print bcolors.WARNING + bcolors.FAIL + "The message has not been read yet! " +bcolors.ENDC
                 print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
@@ -568,13 +577,22 @@ class Client:
         dstPubKey = self.Users[dstId]['description']['Client_pubKey']
         #print self.Users[dstId]['description']
 
-        # cifra hibrida
+        # cifra hibrida destino
         messageCiphered, symKeyCiphered = self.hybrid('cipher', sending, dstPubKey)
 
-        # encapsulamento
+        # cifra hibrida para mim
+        messageCiphered2, symKeyCiphered2 = self.hybrid('cipher', sending, self.pubKey)
+
+        # encapsulamento destino
         dstMessage = json.dumps({
                 "messageCiphered": base64.b64encode(messageCiphered),
                 "symKeyCiphered" : base64.b64encode(symKeyCiphered),
+        })
+
+        # encapsulamento para mim
+        srcMessage = json.dumps({
+                "messageCiphered2": base64.b64encode(messageCiphered2),
+                "symKeyCiphered2" : base64.b64encode(symKeyCiphered2),
         })
 
         data = {
@@ -582,7 +600,7 @@ class Client:
                 "src": self.uuid,
                 "dst": dst,
                 "msg": dstMessage,
-                "copy": sending,        # beta
+                "copy": srcMessage,        # para mim, receipt
                 }
         self.send(data)
 
