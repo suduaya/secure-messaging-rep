@@ -6,7 +6,7 @@ import time, base64
 import random
 import logging, socket, datetime
 import os
-from Crypto.Hash import SHA512, HMAC
+from Crypto.Hash import SHA512, HMAC, SHA256
 from Crypto.Random import random
 from Crypto.PublicKey import RSA
 from string import ascii_lowercase
@@ -18,7 +18,6 @@ security = Security()   # security module
 HOST     = "localhost"   # All available interfaces
 PORT     = 8080          # The server port
 
-#sys.tracebacklimit = 30
 
 TERMINATOR  = "\r\n"
 MAX_BUFSIZE = 64 * 1024
@@ -28,8 +27,7 @@ NOT_CONNECTED   = 10000
 CONNECTING      = 20000
 CONNECTED       = 30000
 
-
-# Mathematics
+# Mathematics for session key / diffie helman
 PRIMITIVE_ROOT = 5
 MODULUS_PRIME = 0xeb8d2e0bfda29137c04f5a748e88681e87038d2438f1ae9a593f620381e58b47656bf5386f7880da383788a35d3b4a6991d3634b149b3875e0dccff21250dccc0bf865a5b262f204b04e38b2385c7f4fb4e2058f73a8f65252e556b667b1570465b2f6d1beeab215b05cd0e28b9277f3f48c01b1619b30147fcfc87b5b6903e70078babb45c2ee6a6bd4099ab87b01ba09a38c36279b46309ef0df5e45e15df9ba5cb296baa535c60bb0065669fd8078269eb759416d9b27229f9cb6e5f60f7d8756f6f621ad519745f914e81a7c8d09b3c7a764863dd5d5f2bcab5ef283aa3781c985d07f2b1aafb2e7747b3217dbbfea2e91484c31a00e22467c0c7f9d40f73d392594c516b302aa7c1aa6ca5a0b346cc6bfc1cd201dfe78aabf717f6c69f30a896567b07090e352e87fd698128da0594916d27203e22b7bb1f7f860842fd0aee2e532a077629451ef86163fdf567048266050a473d4db27e85a33bc985b16569afddaa9a94a5b9155b32b78c84b261ce7acf7d8d0ef23d4e1d028104aff6a77cab79ecdf7dd19468f67d3cb9b86835cce1a87dbf4b2d3100a9bd7a9e251272bf4e2fed2c2f7535e556b8cc1fc6fcfc1a2ca188c02ea9298bb4a7f12afd4164ad9211f7935f51be3d9d932e835a1fd322e7db75ba587021f8c730d7f021905e89a0ddb80bf8ea53b8f1603cf08c734aadfe7f9184e0de9e91651c3d88deb68fd1bc0188e479747caab9a157ef6ec68295a1bfb6391973364987cda6c7817dfee2ab9d4e0eaefb29154f23eafedcab06d67fbcc5d1788a20315c50f9c6471dbb45419b07ddec0d507c16a0b7e2d79290d3115edcdc2996897015dfa430389a1d63533e52aa6309c76e7069e0a99af65702036e7829bc8e86ad3e23983debf72c82d8e3a2e9d767cccfb2abed6b0b0c9f217bb496ea816ea3c32111f60916d91f8a97cfa38b163ca1261733cd98cb2ff77a7ee9290bda74be8dc206489d06abca4e5ae82ae4923fa43b451fa419da06d74f15e4efc4852bf5edf37e581edeaaefd28a8b3c672bb76068439635adecebaf8311d4018fe8e62892f784d7a44747178c4cb540c58e5e2a660a3f02c873d12b43f0643d3794d8b310fe9fa6d798e0724d38c85c9e4d5c8c9ba645f3411dd4645ef1ef1dad9ba60325b12def1bd706d11386045e450fee2a60c88cf6387dea0521acc4d869fb146a47ef4e34480d30f84ffa0e0e0a4a4c7f1b0a8e642223e8bec4d1c8effd98ba235dc5c5f7e296ecd7476595ef17371a1aec3a38c3e7f7e08e7b5e7c927f5843062f753e5ee85f7e64164dd0ccb7261d4ca3a35058ca88f87275a292e96100005c025742f85be7a2598406b9c792f2ba2a496f8074d899821110effb184e3c679330b182a8c14ba1699f3761168d64e838829c0250c6be87bc8dc2b29954bf6cb450ba7bed793cf97
 get_pubNum = lambda x,y,z: int(pow(x,y,z))
@@ -48,14 +46,7 @@ class bcolors:
     FAIL = '\033[91m'
     ENDC = '\033[0m'
     BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'    # Colours
-
-# Randomizer
-def get_id(length):
-    a = "1"
-    while len(a) != int(length) and a[0]!='0':
-        a = ''.join([str(random.randint(0, 9)) for i in range(8)])
-    return int(a)
+    UNDERLINE = '\033[4m'
 
 # Client class
 class Client:
@@ -73,10 +64,10 @@ class Client:
         self.inputs = []        # Sockets from which we expect to read
 
         # Login stuff
-        #self.uuid = "suduaya"
         self.uuid = str(sys.argv[1])
         self.passphrase = str(sys.argv[2])
         self.id = None
+        self.name = None
         self.myDirPath = "clients/" + str(self.uuid)
 
         # Buffers
@@ -87,7 +78,6 @@ class Client:
         self.Users = []  # user id, uuid, pubkeys
 
         # Key Pairs
-        #self.pubKey, self.privKey = security.get_keys()
         self.pubKey, self.privKey = None, None
 
         # Server
@@ -106,6 +96,8 @@ class Client:
         # Flag de sincronizacao inicial
         self.sync = True
 
+    ################################################################################### Aux Functions ###############################################################################
+
     def getKeyByValue(self, value):
         for k, v in self.mail.items():
             if str(value) == v or isinstance(v, list) and str(value) in v:
@@ -117,15 +109,12 @@ class Client:
         path = self.myDirPath + "/key.pem"
         try:
             with open(path, "rb") as f:
-                key = RSA.importKey(f.read(), self.passphrase)
+                key = RSA.importKey(f.read(), self.passphrase)  # import with passphrase
                 self.pubKey, self.privKey = key.publickey().exportKey(format='PEM'),key.exportKey(format='PEM', passphrase=self.passphrase)
-                #print self.pubKey
-                #print self.privKey
-                #print type(self.privKey)
-                print "Keys Sucessfully Loaded!"
+                print bcolors.OKBLUE+ "Keys Sucessfully Loaded!" + bcolors.ENDC
                 return True
         except:
-            print "Error! Wrong Passphrase! Aborting..."
+            print bcolors.FAIL+ "Error! Wrong Passphrase! Aborting..." + bcolors.ENDC
             return False
         return False
 
@@ -133,7 +122,7 @@ class Client:
         self.pubKey, self.privKey = security.get_keys(self.passphrase)
         try:
             os.mkdir(self.myDirPath)
-            print "User Dir(keys) created!"
+            print bcolors.OKBLUE+ "User Dir(keys) created!"+ bcolors.ENDC
         except:
             pass
 
@@ -144,6 +133,33 @@ class Client:
         with open(path, "wb") as f:
             f.write(data)
         return
+
+    def checkUser(self, user):
+        for x in self.Users:
+            y = dict(x)
+            if y['description']['uuid'] == str(user):
+                return True
+        return False
+
+    def getUUID(self, idd):
+        """
+        Translation between id to uuid,
+        give an id, returns respective uuid
+        """
+        for x in self.Users:
+            y = dict(x)
+            if y['id'] == int(idd):
+                return str(y['description']['uuid']) 
+
+    def getID(self, idd):
+        """
+        Translation between uuid to id,
+        give an id, returns respective uuid
+        """
+        for x in self.Users:
+            y = dict(x)
+            if y['description']['uuid'] == str(idd):
+                return str(y['id'])
 
     def hybrid(self, operation, data, data_key=None):
         """
@@ -167,6 +183,8 @@ class Client:
 
             return a
 
+    ##################################################################################################################################################################################
+
     def parseReqs(self, data):
         """Parse a chunk of data from this client.
         Return any complete requests in a list.
@@ -184,26 +202,6 @@ class Client:
 
         return reqs[:-1]
 
-    def getUUID(self, idd):
-        """
-        Translation between id to uuid,
-        give an id, returns respective uuid
-        """
-        for x in self.Users:
-            y = dict(x)
-            if y['id'] == int(idd):
-                return str(y['description']['uuid']) 
-
-    def getID(self, idd):
-        """
-        Translation between uuid to id,
-        give an id, returns respective uuid
-        """
-        for x in self.Users:
-            y = dict(x)
-            if y['description']['uuid'] == str(idd):
-                return str(y['id'])
-
     def handleRequest(self, request):
         """
         Faz o devido handle dos requests do servidor, 
@@ -215,7 +213,6 @@ class Client:
         self.mailBox=[]
         self.outbox=[]
         try:
-            #logging.info("HANDLING message from server: %r", repr(request))
             try:
                 req = json.loads(request)
             except:
@@ -225,13 +222,15 @@ class Client:
                 return
 
             if 'resultSend' in req:
-                print req['resultSend']
+                # mensagem enviada correctamente
+                print bcolors.OKBLUE + "Message Sent Sucessfully!" + bcolors.ENDC
                 return
 
             if 'resultAll' in req:
                 i=0
                 os.system('clear')
 
+                # Parsing messages
                 for x in req['resultAll'][0]:
                     if x[0] == '_':
                         if x not in self.inbox:
@@ -244,7 +243,8 @@ class Client:
                     if y not in self.outbox:
                         self.outbox.append(y)
 
-                self.mailBox = self.newMails + self.inbox   # ordered
+                # ordered mail, new messages first
+                self.mailBox = self.newMails + self.inbox   
 
                 print bcolors.OKGREEN + bcolors.BOLD + "            Mensagens (Inbox/Outbox): " + bcolors.ENDC
                 print bcolors.WARNING + str(len(self.mailBox)) + " Received Messages: " + bcolors.ENDC
@@ -275,6 +275,7 @@ class Client:
                 print bcolors.WARNING +"(/status <msg_number>)" + bcolors.ENDC + "  Check Receipt Status"
                 print bcolors.WARNING +"(<)                   " + bcolors.ENDC + "  go back to main menu"
 
+                # inbox, outbox
                 self.mail = dict(zip(range(1,len(self.mailBox)+1), self.mailBox))
                 self.outmail = dict(zip(range(1,len(self.outbox)+1), self.outbox))
 
@@ -282,13 +283,13 @@ class Client:
 
             if 'resultStatus' in req:
                 os.system('clear')
-                #print req
                 print bcolors.HEADER + bcolors.BOLD + "                 Receipt Status " + bcolors.ENDC
                 if req['resultStatus']['receipts'] != []: # mensagem lida
                     print bcolors.OKGREEN + bcolors.BOLD + "Sent to: " + bcolors.ENDC + str(self.getUUID(req['resultStatus']['receipts'][0]['id']))
                     print bcolors.WARNING + bcolors.BOLD + "Your Message: " + bcolors.ENDC
                     print req['resultStatus']['msg']
                     print "\n" 
+                    # timestamp
                     timestamp = req['resultStatus']['receipts'][0]['date']
                     print bcolors.OKGREEN + "(Read at "+ str(time.ctime(int(timestamp) / 1000)) +")" +bcolors.ENDC
                     print bcolors.WARNING + bcolors.BOLD + "Signature: " +bcolors.ENDC
@@ -304,34 +305,40 @@ class Client:
                 print bcolors.WARNING +"(<)       " + bcolors.ENDC + "Return to Main Menu"
                 return
 
-            if 'resultDH' in req:       #connect to server
+            if 'resultDH' in req:       
+                #connect to server, calculate shared/session key
                 self.serverPubNum = int(req['resultDH']['Server_pubNum'])
                 self.serverPubKey = req['server_pubkey']
                 self.sharedKey = int(pow(self.serverPubNum,self.privNum, self.modulus_prime))
+
+                # state changed to connected
                 self.state = CONNECTED
-                self.loadKeys()
-                '''if not (self.loadKeys()):
-                    self.stop()
-                    return'''
-                print "Sucessfully Connected!"
-                self.listUserMsgBox()
+
+                # load keys and data registered on server(id, name), passphrase is checked
+                if self.loadKeys():
+                    self.id = req['id']
+                    self.name = req['name']
+                    print bcolors.OKBLUE+"Sucessfully Connected!"+bcolors.ENDC
+                else:
+                    print bcolors.FAIL+"Connection Denied!"+bcolors.ENDC
+
+                # synchronizing users details
+                self.listUserMsgBox()   
                 return
 
             if 'resultRecv' in req:
-                print req
                 os.system('clear')
                 source = req['resultRecv'][0]
                 msg = req['resultRecv'][1]
-
                 msg = json.loads(msg)
-                
+
+                # parsing arguments to decipher
                 messageCiphered = base64.b64decode(msg['messageCiphered'])
                 symKeyCiphered = base64.b64decode(msg['symKeyCiphered'])
 
-
+                # decipher msg
                 msg = self.hybrid(operation='decipher', data=str(messageCiphered), data_key=str(symKeyCiphered))
                 
-
                 msg_nr = str(req['resultRecv'][2])
                 dict_id = self.getKeyByValue(msg_nr)  # indicates message in self.mail
                 print bcolors.OKGREEN + bcolors.BOLD + "Source: " + bcolors.ENDC + self.getUUID(str(source))
@@ -339,13 +346,15 @@ class Client:
                 print msg
                 print "\n"
                 print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
-                print bcolors.WARNING +"(<)    " + bcolors.ENDC + " go back to main menu"
-                self.receipt(int(dict_id)) # errado
+                print bcolors.WARNING +"(/all)    " + bcolors.ENDC + "Return to Message Box"
+                print bcolors.WARNING +"(<)       " + bcolors.ENDC + "go back to main menu"
+                digest = SHA256.new(msg).hexdigest()
+                #print digest
+                self.receipt(int(dict_id), str(digest))
                 return               
 
             if 'resultList' in req:
                 arrayAux = []
-                
                 if self.sync == False:
                     os.system('clear')
                     print bcolors.OKGREEN + bcolors.BOLD + "\tMessageBoxes List (users): \n" + bcolors.ENDC
@@ -358,7 +367,7 @@ class Client:
                     arrayAux.append(aux)
                     if self.sync == False:
                         if (x['description']['uuid'] != (self.uuid)):
-                            print bcolors.WARNING +'Username: ' +bcolors.ENDC + str(x['description']['uuid']) + "\tName: Joao" + "\tStatus: Online"
+                            print bcolors.WARNING +'Username: ' +bcolors.ENDC + str(x['description']['uuid']) + "\t\t" + bcolors.WARNING +'Nome: ' +bcolors.ENDC+str(x['description']['name'])
                 if self.sync == False:
                     print "\n"
                     print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
@@ -374,7 +383,6 @@ class Client:
             if 'type' not in req:
                 return
 
-
         except Exception, e:
             logging.exception("Could not handle request")
 
@@ -385,7 +393,6 @@ class Client:
         de modo a fazer um pedido correcto ao servidor
         """
         fields = input.split()
-
 
         if fields[0] == '/list':
             self.listUserMsgBox()
@@ -400,11 +407,14 @@ class Client:
             self.listAllMessages()
             return
         if fields[0] == '/send':
-            self.sendMessage(str(fields[1]), fields[2:])
+            usernameDst = str(fields[1])
+            if self.checkUser(usernameDst):
+                self.sendMessage(str(fields[1]), fields[2:])
+                return
+            print bcolors.FAIL + "Username not found! Try another one ..." + bcolors.ENDC            
             return
         if fields[0] == '/recv':
             self.recvMessage(int(fields[1]))
-            #self.receipt(int(fields[1]))
             return
         if fields[0] == '<':
             os.system('clear')
@@ -442,10 +452,10 @@ class Client:
 
         # Checking Integrity
         if (HMAC_new == HMAC_msg) :
-            print "Integrity Checked Sucessfully"
+            print bcolors.OKBLUE + "Integrity Checked Sucessfully" + bcolors.ENDC
             return dataFinal
         else:
-            print "Message forged! Sorry! Aborting ..."
+            print bcolors.FAIL + "Message forged! Sorry! Aborting ..." + bcolors.ENDC
             return
 
     def loop(self):
@@ -474,7 +484,7 @@ class Client:
                     if len(input) > 0:
                         self.handleInput(input)
     
-    ######################################## Client Messages ########################################
+    ################################################################################ Client Messages ################################################################################
     #Start DiffieHelman key exchange
     def startDH(self, phase):
         self.primitive_root = PRIMITIVE_ROOT
@@ -501,12 +511,12 @@ class Client:
         self.send(data)
 
     # Message receipt
-    def receipt(self, msgNr):
+    def receipt(self, msgNr, receipt):
         data = {
                 "type" : "receipt",
                 "id"   : self.uuid,
                 "msg"  : self.mail[int(msgNr)],
-                "receipt": "wtf",
+                "receipt": receipt,
         }
         self.send(data)
 
@@ -516,6 +526,7 @@ class Client:
         data = {
                 "type": "create",
                 "uuid": self.uuid,
+                "name": self.name,
                 "Client_pubKey"  : self.pubKey,
                 }
         self.send(data)
@@ -555,7 +566,7 @@ class Client:
 
         # respectiva public key
         dstPubKey = self.Users[dstId]['description']['Client_pubKey']
-        print self.Users[dstId]['description']
+        #print self.Users[dstId]['description']
 
         # cifra hibrida
         messageCiphered, symKeyCiphered = self.hybrid('cipher', sending, dstPubKey)
@@ -575,7 +586,7 @@ class Client:
                 }
         self.send(data)
 
-    ##################################################################################################
+    ##################################################################################################################################################################################
 
     # Verificacao do tipo de mensagem e envio (socket.send)
     def send(self, dict_):

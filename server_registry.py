@@ -185,7 +185,6 @@ class ServerRegistry:
         for k in self.users.keys():
             if self.users[k].description["uuid"] == uuid:
                 id = self.users[k].id
-
         return id
 
     def userAllMessages(self, uid):

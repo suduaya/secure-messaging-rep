@@ -188,6 +188,8 @@ class ServerActions:
                                         "phase" : phase+1
                                     },
                             "server_pubkey" : self.pubKey,
+                            "id": client.id,
+                            "name": self.registry.users[client.id].description["name"]
                         })
         # Change Client Status
         client.status = CONNECTED
