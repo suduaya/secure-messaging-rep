@@ -13,8 +13,10 @@ from string import ascii_lowercase
 from Security_functions import Security
 from Crypto.Protocol.KDF import PBKDF1
 import time
+from citizencard import citizencard
 
-security = Security()   # security module
+security = Security()    # security functions
+cc = citizencard()
 HOST     = "localhost"   # All available interfaces
 PORT     = 8080          # The server port
 
@@ -67,6 +69,8 @@ class Client:
         self.passphrase = str(sys.argv[2])
         self.id = None
         self.name = None
+        self.certificate = None
+        self.serialnumber = None
         self.myDirPath = "clients/" + str(self.uuid)
 
         # Buffers
@@ -376,7 +380,7 @@ class Client:
                     arrayAux.append(aux)
                     if self.sync == False:
                         if (x['description']['uuid'] != (self.uuid)):
-                            print bcolors.WARNING +'Username: ' +bcolors.ENDC + str(x['description']['uuid']) + "\t\t" + bcolors.WARNING +'Nome: ' +bcolors.ENDC+str(x['description']['name'])
+                            print bcolors.WARNING +'Username: ' +bcolors.ENDC + str(x['description']['uuid']) + " \t " + bcolors.WARNING +'Nome: ' +bcolors.ENDC+(x['description']['name']).encode('utf-8')
                 if self.sync == False:
                     print "\n"
                     print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
@@ -387,6 +391,7 @@ class Client:
 
             if 'resultCreate' in req:
                 self.id =  req['resultCreate']
+                print bcolors.OKGREEN + "You may connect now! (/connect)" + bcolors.ENDC
                 return
 
             if 'type' not in req:
@@ -467,6 +472,22 @@ class Client:
             print bcolors.FAIL + "Message forged! Sorry! Aborting ..." + bcolors.ENDC
             return
 
+    def retrieveCCData(self):
+        try:
+            self.certificate = cc.certificate()
+            self.name, self.serialnumber = cc.getUserDetails(self.certificate)
+            print bcolors.OKBLUE + "Citizen Card loaded!" + bcolors.ENDC
+            if not cc.retrieveStatus(cert= self.certificate, mode="AUTHENTICATION"):
+                print bcolors.FAIL + "Citizen Card revoked!" + bcolors.ENDC
+                return False
+            print bcolors.OKBLUE + "Citizen Card not revoked!" + bcolors.ENDC
+            time.sleep(1)
+            return True
+        except:
+            print bcolors.FAIL + "Failed loading Citizen Card!" + bcolors.ENDC
+            return False
+        return False
+
     def loop(self):
         """
         Ciclo de vida, handle de requests do servidor
@@ -531,14 +552,17 @@ class Client:
 
     # Create User Message Box
     def createUserMsgBox(self):
-        self.saveKeys()
-        data = {
-                "type": "create",
-                "uuid": self.uuid,
-                "name": self.name,
-                "Client_pubKey"  : self.pubKey,
-                }
-        self.send(data)
+        if self.retrieveCCData():
+            self.saveKeys()
+            data = {
+                    "type": "create",
+                    "uuid": self.uuid,
+                    "name": self.name,
+                    "Client_pubKey"  : self.pubKey,
+                    "certificate" : self.certificate,
+                    "serialnumber" : self.serialnumber,
+                    }
+            self.send(data)
 
     # Read a message
     def recvMessage(self, msgNr):
