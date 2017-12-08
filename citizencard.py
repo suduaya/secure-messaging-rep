@@ -9,21 +9,23 @@ from Crypto.Signature import PKCS1_v1_5
 from Crypto.PublicKey import RSA
 from Crypto.Hash import SHA256
 
+#labels auth
 certLabel = 'CITIZEN AUTHENTICATION CERTIFICATE'
 KEY_LABEL = 'CITIZEN AUTHENTICATION KEY'
 
+#labels sign
 certLabel2 = 'CITIZEN SIGNATURE CERTIFICATE'
 KEY_LABEL2 = 'CITIZEN SIGNATURE KEY'
 
 class citizencard():
-    def certificate(self):
+    def certificate(self, mode):
         slot = 0
         lib = '/usr/local/lib/libpteidpkcs11.dylib'
-        #Load PKCS11 lib
+        # Load PKCS11 lib
         pkcs11 = PyKCS11.PyKCS11Lib()
         pkcs11.load(lib)
 
-        #Open slots
+        # Open slots
         try:
             slots = pkcs11.getSlotList()
             s = slots[slot]
@@ -31,12 +33,20 @@ class citizencard():
             print 'No smartcard reader found!'
             return None
 
-        #Abrir sessao
+        # Abrir sessao
         try:
             session = pkcs11.openSession(s)
-            objs = session.findObjects(template=(
-                    (PyKCS11.LowLevel.CKA_LABEL, 'CITIZEN AUTHENTICATION CERTIFICATE'),
-                    (PyKCS11.LowLevel.CKA_CLASS, PyKCS11.LowLevel.CKO_CERTIFICATE)))
+            if mode == "AUTHENTICATION":
+                print "AUTHENTICATION"
+                objs = session.findObjects(template=(
+                        (PyKCS11.LowLevel.CKA_LABEL, 'CITIZEN AUTHENTICATION CERTIFICATE'),
+                        (PyKCS11.LowLevel.CKA_CLASS, PyKCS11.LowLevel.CKO_CERTIFICATE)))
+
+            if mode == "SIGNATURE":
+                print "SIGNATURE"
+                objs = session.findObjects(template=(
+                        (PyKCS11.LowLevel.CKA_LABEL, 'CITIZEN SIGNATURE CERTIFICATE'),
+                        (PyKCS11.LowLevel.CKA_CLASS, PyKCS11.LowLevel.CKO_CERTIFICATE)))
         except:
             print 'Error while opening Session on Citizen Card!'
             return None
@@ -50,7 +60,8 @@ class citizencard():
         except:
             print 'Invalid Card!'
             return None
-        return pem
+
+        return pem, session    # certificado e sessao
 
     def getAuthenticationIssuers(self, cert):  # EC Number e CC number
         obj = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, cert)
@@ -169,8 +180,48 @@ class citizencard():
 
             # None se nenhum foi revoked
             if store_ctx.verify_certificate() is None:
+                # print worked wow
                 return True
         except:
+            # print didnt worked wow
             return False
 
         return False
+
+    def sign(self, data, session, mode):
+        # Assert da Sessao
+        if isinstance(session, PyKCS11.Session):
+            # Chave de authenticacao
+            if mode == "AUTHENTICATION":
+                key = session.findObjects(template=((PyKCS11.LowLevel.CKA_LABEL, 'CITIZEN AUTHENTICATION KEY'),
+                                                    (PyKCS11.LowLevel.CKA_CLASS, PyKCS11.LowLevel.CKO_PRIVATE_KEY),
+                                                    (PyKCS11.LowLevel.CKA_KEY_TYPE, PyKCS11.LowLevel.CKK_RSA)))[0]
+            # Chave de assinatura    
+            if mode == "SIGNATURE":
+                key = session.findObjects(template=((PyKCS11.LowLevel.CKA_LABEL, 'CITIZEN SIGNATURE KEY'),
+                                                    (PyKCS11.LowLevel.CKA_CLASS, PyKCS11.LowLevel.CKO_PRIVATE_KEY),
+                                                    (PyKCS11.LowLevel.CKA_KEY_TYPE, PyKCS11.LowLevel.CKK_RSA)))[0]
+            # Sha256
+            mech = PyKCS11.Mechanism(PyKCS11.LowLevel.CKM_SHA256_RSA_PKCS, '')
+
+            # Sign
+            sig = session.sign(key, data, mech)
+
+            # bytelist
+            signature = ''.join(chr(c) for c in sig)
+
+            # legivel, b64encoding
+            signature_cleartext = base64.b64encode(signature)
+
+            # worked wow
+            return signature, signature_cleartext
+
+    def verify(self, cert, data, sign):
+        try:
+            #cert load
+            pem = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, cert) 
+
+            # SHA1 (antigos cartoes) | SHA256 (novos cartoes) | assumindo que None = True, else False
+            return (OpenSSL.crypto.verify(pem, sign, data, "sha256") is None) or (OpenSSL.crypto.verify(pem, sign, data, "sha1") is None) 
+        except Exception, e:
+            return False
