@@ -474,10 +474,13 @@ class Client:
 
     def retrieveCCData(self):
         try:
-            self.certificate = cc.certificate()
-            self.name, self.serialnumber = cc.getUserDetails(self.certificate)
+            self.auth_certificate, self.session = cc.certificate(mode="AUTHENTICATION")
+            self.sign_certificate, self.session = cc.certificate(mode="SIGNATURE")
+
+            self.name, self.serialnumber = cc.getUserDetails(self.auth_certificate)
             print bcolors.OKBLUE + "Citizen Card loaded!" + bcolors.ENDC
-            if not cc.retrieveStatus(cert= self.certificate, mode="AUTHENTICATION"):
+
+            if not (cc.retrieveStatus(cert= self.auth_certificate, mode="AUTHENTICATION") or cc.retrieveStatus(cert= self.sign_certificate, mode="SIGNATURE")):
                 print bcolors.FAIL + "Citizen Card revoked!" + bcolors.ENDC
                 return False
             print bcolors.OKBLUE + "Citizen Card not revoked!" + bcolors.ENDC
@@ -559,7 +562,8 @@ class Client:
                     "uuid": self.uuid,
                     "name": self.name,
                     "Client_pubKey"  : self.pubKey,
-                    "certificate" : self.certificate,
+                    "auth_certificate" : self.auth_certificate,
+                    "sign_certificate" : self.sign_certificate,
                     "serialnumber" : self.serialnumber,
                     }
             self.send(data)
