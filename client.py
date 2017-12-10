@@ -332,11 +332,13 @@ class Client:
                     self.id = req['id']
                     self.name = req['name']
                     print bcolors.OKBLUE+"Sucessfully Connected!"+bcolors.ENDC
+                    # synchronizing users details
+                    self.listUserMsgBox()
+                    time.sleep(1)
+                    os.system('clear')
+                    self.show_menu() 
                 else:
-                    print bcolors.FAIL+"Connection Denied!"+bcolors.ENDC
-
-                # synchronizing users details
-                self.listUserMsgBox()   
+                    print bcolors.FAIL+"Connection Denied!"+bcolors.ENDC  
                 return
 
             if 'resultRecv' in req:
@@ -466,10 +468,10 @@ class Client:
 
         # Checking Integrity
         if (HMAC_new == HMAC_msg) :
-            print bcolors.OKBLUE + "Integrity Checked Sucessfully" + bcolors.ENDC
+            #print bcolors.OKBLUE + "Integrity Checked Sucessfully" + bcolors.ENDC
             return dataFinal
         else:
-            print bcolors.FAIL + "Message forged! Sorry! Aborting ..." + bcolors.ENDC
+            #print bcolors.FAIL + "Message forged! Sorry! Aborting ..." + bcolors.ENDC
             return
 
     def retrieveCCData(self):
@@ -497,7 +499,7 @@ class Client:
         e pedidos do cliente ao servidor, em loop
         """
         os.system('clear')
-        self.show_menu()
+        self.show_initmenu()
         while 1:
             socks = select.select([self.ss, sys.stdin, ], [], [])[0]
             for sock in socks:
@@ -695,15 +697,24 @@ class Client:
             logging.exception("Client.stop")
         logging.info("Client Stopped!")
     
+    
     # Menu inicial
+    def show_initmenu(self):
+        print bcolors.HEADER + bcolors.BOLD + "             Secure Messaging Repository System\n" + bcolors.ENDC
+
+        print bcolors.WARNING + "       (/create)                 " + bcolors.ENDC + "Create Account\n" + \
+              bcolors.WARNING + "       (/connect)                " + bcolors.ENDC + "Connect to Message Repository\n" + \
+              bcolors.HEADER + bcolors.BOLD + "\n"+ "Command:" + bcolors.ENDC
+        return
+
+    # Menu principal
     def show_menu(self):
         print bcolors.HEADER + bcolors.BOLD + "             Secure Messaging Repository System\n" + bcolors.ENDC
 
-        print bcolors.WARNING + "(/create)                 " + bcolors.ENDC + "Create a User Message Box\n" + \
-              bcolors.WARNING + "(/connect)                " + bcolors.ENDC + "Connect to User Message Box\n" + \
-              bcolors.WARNING + "(/list)                   " + bcolors.ENDC + "List All Users Connected\n" + \
-              bcolors.WARNING + "(/all)                    " + bcolors.ENDC + "List All Messages\n" + "\n"+\
-              bcolors.HEADER + bcolors.BOLD + "Command:" + bcolors.ENDC
+        print bcolors.WARNING + "       (/list)                   " + bcolors.ENDC + "List All Connected Users\n" + \
+              bcolors.WARNING + "       (/all)                    " + bcolors.ENDC + "My Message Box\n" +\
+              bcolors.WARNING + "       (/send  <user> <text>)    " + bcolors.ENDC + "Send a Message\n" + \
+              bcolors.HEADER + bcolors.BOLD + "\n"+ "Command:" + bcolors.OKGREEN + "                                        Connected as "+ bcolors.ENDC + str(self.uuid)
         return
 
 if __name__ == "__main__":
