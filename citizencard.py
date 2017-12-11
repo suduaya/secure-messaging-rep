@@ -225,3 +225,20 @@ class citizencard():
             return (OpenSSL.crypto.verify(pem, sign, data, "sha256") is None) or (OpenSSL.crypto.verify(pem, sign, data, "sha1") is None) 
         except Exception, e:
             return False
+
+    def signatureValidity(self, cert, timestamp):
+        # Check if signature was valid on that timestamp
+        x509 = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, cert)
+
+        # cert lifetime
+        not_after =  x509.get_notAfter()
+        not_before = x509.get_notBefore()
+
+        # converter tudo para datetime
+        time_not_before = datetime.datetime.strptime(not_before[:-1], "%Y%m%d%H%M%S")
+        time_not_after = datetime.datetime.strptime(not_after[:-1], "%Y%m%d%H%M%S")
+        dt = (time.ctime(int(timestamp) / 1000))
+        time_time_arg = datetime.datetime.strptime(dt, "%a %b %d %H:%M:%S %Y")
+
+        # True se o timestamp tiver dentro do not_before e do not_after
+        return ((time_time_arg < time_not_after) and (time_not_before < time_time_arg))
