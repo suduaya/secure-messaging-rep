@@ -298,7 +298,7 @@ class Client:
                 return
 
             if 'resultStatus' in req:
-                print req
+                #print req
                 os.system('clear')
                 msg = req['resultStatus']['msg']
                 msg = json.loads(msg)
@@ -361,7 +361,7 @@ class Client:
                 return
 
             if 'resultRecv' in req:
-                print req
+                #print req
                 os.system('clear')
                 source = req['resultRecv'][0]
                 msg = req['resultRecv'][1]
@@ -389,7 +389,7 @@ class Client:
                 print bcolors.WARNING + bcolors.BOLD + "Message: " +bcolors.ENDC
                 print msg
                 print "\n"
-                if cc.verify(cert=source_cert, data= msg, sign= signature):
+                if cc.verify(cert=source_cert, data= msg, sign= signature) and cc.signatureValidity(cert=source_cert, timestamp=sent_timestamp):
                     print bcolors.OKGREEN + bcolors.BOLD + "Signed and Verified!\n" + bcolors.ENDC
                 else:
                     print bcolors.FAIL + bcolors.BOLD + "Unreliable Message!\n" + bcolors.ENDC
