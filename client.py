@@ -164,6 +164,16 @@ class Client:
             if y['description']['uuid'] == str(idd):
                 return str(y['id'])
 
+    def getCert(self, username):
+        """
+        Translation between uuid to id,
+        give an id, returns respective uuid
+        """
+        for x in self.Users:
+            y = dict(x)
+            if y['description']['uuid'] == str(username):
+                return str(y['description']['auth_certificate'])
+
     def hybrid(self, operation, data, data_key=None):
         """
         Function used to cipher/decipher requests, generates symetric 
@@ -249,7 +259,7 @@ class Client:
                 # ordered mail, new messages first
                 self.mailBox = self.newMails + self.inbox   
 
-                print bcolors.OKGREEN + bcolors.BOLD + "            Mensagens (Inbox/Outbox): " + bcolors.ENDC
+                print bcolors.OKGREEN + bcolors.BOLD + "            Mensagens (Inbox/Outbox): \n" + bcolors.ENDC
                 print bcolors.WARNING + str(len(self.mailBox)) + " Received Messages: " + bcolors.ENDC
                 if len(self.mailBox) == 0:
                         print "You didnt received any message yet.\n"
@@ -272,11 +282,14 @@ class Client:
                     i = i + 1
                     print str(i) +"- Message " +  str(aux[1]) + " sent to user " +  self.getUUID(str(aux[0]))
                 print "\n"
-                print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
-                print bcolors.WARNING +"(/send  <user> <text>)" + bcolors.ENDC + "  Send a Message"
-                print bcolors.WARNING +"(/recv   <msg_number>)" + bcolors.ENDC + "  Read message"
-                print bcolors.WARNING +"(/status <msg_number>)" + bcolors.ENDC + "  Check Receipt Status"
-                print bcolors.WARNING +"(<)                   " + bcolors.ENDC + "  go back to main menu"
+                print "\n"
+                print "    ------------------------------------------------"
+                print bcolors.HEADER + bcolors.BOLD + "     Commands: " + bcolors.ENDC
+                print bcolors.WARNING +"        (/send  <user> <text>)" + bcolors.ENDC + "  Send a Message"
+                print bcolors.WARNING +"        (/recv   <msg_number>)" + bcolors.ENDC + "  Read message"
+                print bcolors.WARNING +"        (/status <msg_number>)" + bcolors.ENDC + "  Check Receipt Status"
+                print bcolors.WARNING +"        (<)                   " + bcolors.ENDC + "  Main Menu"
+                print "    ------------------------------------------------"
 
                 # inbox, outbox
                 self.mail = dict(zip(range(1,len(self.mailBox)+1), self.mailBox))
@@ -285,6 +298,7 @@ class Client:
                 return
 
             if 'resultStatus' in req:
+                print req
                 os.system('clear')
                 msg = req['resultStatus']['msg']
                 msg = json.loads(msg)
@@ -313,9 +327,14 @@ class Client:
                     print str(msg)
                     print "\n" 
                     print bcolors.WARNING + bcolors.FAIL + "The message has not been read yet! " +bcolors.ENDC
-                print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
-                print bcolors.WARNING +"(/all)    " + bcolors.ENDC + "Return to Message Box"
-                print bcolors.WARNING +"(<)       " + bcolors.ENDC + "Return to Main Menu"
+
+                print "\n"
+                print "    ------------------------------------------------"
+                print bcolors.HEADER + bcolors.BOLD + "     Commands: " + bcolors.ENDC
+                print bcolors.WARNING +"        (/all)    " + bcolors.ENDC + "Return to Message Box"
+                print bcolors.WARNING +"        (<)       " + bcolors.ENDC + "Main Menu"
+                print "    ------------------------------------------------"
+
                 return
 
             if 'resultDH' in req:       
@@ -342,6 +361,7 @@ class Client:
                 return
 
             if 'resultRecv' in req:
+                print req
                 os.system('clear')
                 source = req['resultRecv'][0]
                 msg = req['resultRecv'][1]
@@ -350,22 +370,66 @@ class Client:
                 # parsing arguments to decipher
                 messageCiphered = base64.b64decode(msg['messageCiphered'])
                 symKeyCiphered = base64.b64decode(msg['symKeyCiphered'])
+                sent_timestamp = base64.b64decode(msg['timestamp'])
+                signature_dict = json.loads(base64.b64decode(msg['signature']))
+
+                signature = base64.b64decode(signature_dict['signature'])
+                sign_cleartext = base64.b64decode(signature_dict['cleartext'])
 
                 # decipher msg
                 msg = self.hybrid(operation='decipher', data=str(messageCiphered), data_key=str(symKeyCiphered))
                 
+                # username and cert
+                source = self.getUUID(str(source))
+                source_cert = self.getCert(username=source)
+
                 msg_nr = str(req['resultRecv'][2])
                 dict_id = self.getKeyByValue(msg_nr)  # indicates message in self.mail
-                print bcolors.OKGREEN + bcolors.BOLD + "Source: " + bcolors.ENDC + self.getUUID(str(source))
+                print bcolors.OKGREEN + bcolors.BOLD + "Source: " + bcolors.ENDC + str(source)
                 print bcolors.WARNING + bcolors.BOLD + "Message: " +bcolors.ENDC
                 print msg
                 print "\n"
-                print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
-                print bcolors.WARNING +"(/all)    " + bcolors.ENDC + "Return to Message Box"
-                print bcolors.WARNING +"(<)       " + bcolors.ENDC + "go back to main menu"
-                digest = SHA256.new(msg).hexdigest()
-                #print digest
-                self.receipt(int(dict_id), str(digest))
+                if cc.verify(cert=source_cert, data= msg, sign= signature):
+                    print bcolors.OKGREEN + bcolors.BOLD + "Signed and Verified!\n" + bcolors.ENDC
+                else:
+                    print bcolors.FAIL + bcolors.BOLD + "Unreliable Message!\n" + bcolors.ENDC
+
+                print "\n"
+                print "    ------------------------------------------------"
+                print bcolors.HEADER + bcolors.BOLD + "     Commands: " + bcolors.ENDC
+                print bcolors.WARNING +"        (/all)    " + bcolors.ENDC + "      Return to Message Box"
+                print bcolors.WARNING +"        (<)       " + bcolors.ENDC + "      Main Menu"
+                print "    ------------------------------------------------"
+
+                scanner = raw_input(bcolors.OKBLUE + bcolors.BOLD +"\nSend Receipt? (y/n)\n" + bcolors.ENDC)
+                option = str(scanner)
+                if option.lower() =='n':
+                    return
+                if option.lower() =='y':
+                    self.receipt(int(dict_id), str(sign_cleartext))
+                '''
+                scanner = raw_input(bcolors.OKBLUE + bcolors.BOLD +"Send Signed Receipt? (y/n)\n" + bcolors.ENDC)
+                option = str(scanner)
+                if option.lower() =='n':
+                    return
+                if option.lower() =='y':
+                    new_timestamp = str(int(time.time() * 1000))
+                    self.auth_certificate, self.session = cc.certificate(mode="AUTHENTICATION")
+
+                    if not cc.retrieveStatus(cert= self.auth_certificate, mode="AUTHENTICATION"):
+                        print "Your Certificate is revoked! Sorry, aborting ..."
+                        return
+                    
+                    if not cc.signatureValidity(cert=self.auth_certificate, timestamp=new_timestamp):
+                        print "Your Signature isn't valid!"
+                        return
+                
+                    # assinar
+                    #new_signed, cleartext = cc.sign(data=msg, session=self.session, mode="AUTHENTICATION")  
+                    # receipt                      
+                    self.receipt(int(dict_id), "wtf")
+
+                '''
                 return               
 
             if 'resultList' in req:
@@ -553,6 +617,7 @@ class Client:
                 "msg"  : self.mail[int(msgNr)],
                 "receipt": receipt,
         }
+        print bcolors.OKBLUE + "Receipt Sent Sucessfully!" + bcolors.ENDC
         self.send(data)
 
     # Create User Message Box
@@ -613,17 +678,46 @@ class Client:
         # cifra hibrida para mim
         messageCiphered2, symKeyCiphered2 = self.hybrid('cipher', sending, self.pubKey)
 
+
+        # registar envio
+        timestamp = str(int(time.time() * 1000))
+
+        # Verificar estado do certificado
+        self.auth_certificate, self.session = cc.certificate(mode="AUTHENTICATION")
+
+        if not cc.retrieveStatus(cert= self.auth_certificate, mode="AUTHENTICATION"):
+            print "Your Certificate is revoked! Sorry, aborting ..."
+            return
+        
+        if not cc.signatureValidity(cert=self.auth_certificate, timestamp=timestamp):
+            print "Your Signature isn't valid!"
+            return
+        # assinar
+        signature, cleartext = cc.sign(data=sending, session=self.session, mode="AUTHENTICATION")
+
+        # signed stuff
+        signed = json.dumps({
+                "signature": base64.b64encode(signature),
+                "cleartext" : base64.b64encode(cleartext),
+        })
+
         # encapsulamento destino
         dstMessage = json.dumps({
                 "messageCiphered": base64.b64encode(messageCiphered),
                 "symKeyCiphered" : base64.b64encode(symKeyCiphered),
+                "timestamp": base64.b64encode(timestamp),
+                "signature": base64.b64encode(signed),
         })
 
         # encapsulamento para mim
         srcMessage = json.dumps({
                 "messageCiphered2": base64.b64encode(messageCiphered2),
                 "symKeyCiphered2" : base64.b64encode(symKeyCiphered2),
+                "timestamp": base64.b64encode(timestamp),
         })
+
+        
+
 
         data = {
                 "type": "send",
@@ -710,11 +804,12 @@ class Client:
     # Menu principal
     def show_menu(self):
         print bcolors.HEADER + bcolors.BOLD + "             Secure Messaging Repository System\n" + bcolors.ENDC
-
-        print bcolors.WARNING + "       (/list)                   " + bcolors.ENDC + "List All Connected Users\n" + \
+        print "     ---------------------------------------------------"
+        print bcolors.WARNING + "       (/list)                   " + bcolors.ENDC + "List Connected Users\n" + \
               bcolors.WARNING + "       (/all)                    " + bcolors.ENDC + "My Message Box\n" +\
-              bcolors.WARNING + "       (/send  <user> <text>)    " + bcolors.ENDC + "Send a Message\n" + \
-              bcolors.HEADER + bcolors.BOLD + "\n"+ "Command:" + bcolors.OKGREEN + "                                        Connected as "+ bcolors.ENDC + str(self.uuid)
+              bcolors.WARNING + "       (/send  <user> <text>)    " + bcolors.ENDC + "Send a Message"
+        print "     ---------------------------------------------------"
+        print bcolors.HEADER + bcolors.BOLD + "\n"+ "Command:" + bcolors.OKGREEN + "                                        Connected as "+ bcolors.ENDC + str(self.uuid)
         return
 
 if __name__ == "__main__":

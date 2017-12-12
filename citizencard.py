@@ -4,7 +4,9 @@
 import PyKCS11
 import sys
 import OpenSSL
+import datetime, time
 import os, urllib, shutil
+import base64
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.PublicKey import RSA
 from Crypto.Hash import SHA256
@@ -37,13 +39,13 @@ class citizencard():
         try:
             session = pkcs11.openSession(s)
             if mode == "AUTHENTICATION":
-                print "AUTHENTICATION"
+                #print "AUTHENTICATION"
                 objs = session.findObjects(template=(
                         (PyKCS11.LowLevel.CKA_LABEL, 'CITIZEN AUTHENTICATION CERTIFICATE'),
                         (PyKCS11.LowLevel.CKA_CLASS, PyKCS11.LowLevel.CKO_CERTIFICATE)))
 
             if mode == "SIGNATURE":
-                print "SIGNATURE"
+                #print "SIGNATURE"
                 objs = session.findObjects(template=(
                         (PyKCS11.LowLevel.CKA_LABEL, 'CITIZEN SIGNATURE CERTIFICATE'),
                         (PyKCS11.LowLevel.CKA_CLASS, PyKCS11.LowLevel.CKO_CERTIFICATE)))
