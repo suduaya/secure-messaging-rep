@@ -98,6 +98,7 @@ class Client:
 
         # Flag de sincronizacao inicial
         self.sync = True
+        self.to_receipt = False
 
     ################################################################################### Aux Functions ###############################################################################
 
@@ -361,6 +362,7 @@ class Client:
                 return
 
             if 'resultRecv' in req:
+                print self.to_receipt
                 #print req
                 os.system('clear')
                 source = req['resultRecv'][0]
@@ -401,12 +403,10 @@ class Client:
                 print bcolors.WARNING +"        (<)       " + bcolors.ENDC + "      Main Menu"
                 print "    ------------------------------------------------"
 
-                scanner = raw_input(bcolors.OKBLUE + bcolors.BOLD +"\nSend Receipt? (y/n)\n" + bcolors.ENDC)
-                option = str(scanner)
-                if option.lower() =='n':
-                    return
-                if option.lower() =='y':
+               
+                if self.to_receipt:        # mandar receipt se for primeira leitura
                     self.receipt(int(dict_id), str(sign_cleartext))
+
                 '''
                 scanner = raw_input(bcolors.OKBLUE + bcolors.BOLD +"Send Signed Receipt? (y/n)\n" + bcolors.ENDC)
                 option = str(scanner)
@@ -637,6 +637,13 @@ class Client:
 
     # Read a message
     def recvMessage(self, msgNr):
+
+        if self.mail[int(msgNr)] in self.newMails:
+            self.to_receipt = True
+        else:
+            self.to_receipt = False
+
+
         data = {
                 "type": "recv",
                 "uuid"  : self.uuid,
