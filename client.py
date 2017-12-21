@@ -299,14 +299,26 @@ class Client:
                 return
 
             if 'resultStatus' in req:
-                #print req
                 os.system('clear')
                 msg = req['resultStatus']['msg']
                 msg = json.loads(msg)
 
-                # parsing arguments to decipher
+                # parsing arguments to decipher message content, real text
                 messageCiphered2 = base64.b64decode(msg['messageCiphered2'])
                 symKeyCiphered2 = base64.b64decode(msg['symKeyCiphered2'])
+
+                # parse signed receipt
+                receiptDict =  json.loads(req['resultStatus']['receipts'][0]['receipt'])
+                receiptSigned = base64.b64decode(receiptDict['receiptSigned'])
+                receiptCleartext = base64.b64decode(receiptDict['receiptCleartext'])
+                message = base64.b64decode(receiptDict['message'])
+
+                # source username, certificate
+                source = self.getUUID(req['resultStatus']['receipts'][0]['id'])
+                source_cert = self.getCert(username=source)
+
+                # timestamp
+                timestamp = req['resultStatus']['receipts'][0]['date']
 
                 # decipher msg
                 msg = self.hybrid(operation='decipher', data=str(messageCiphered2), data_key=str(symKeyCiphered2))
@@ -317,18 +329,18 @@ class Client:
                     print bcolors.WARNING + bcolors.BOLD + "Your Message: " + bcolors.ENDC
                     print str(msg)
                     print "\n" 
-                    # timestamp
-                    timestamp = req['resultStatus']['receipts'][0]['date']
-                    print bcolors.OKGREEN + "(Read at "+ str(time.ctime(int(timestamp) / 1000)) +")" +bcolors.ENDC
-                    print bcolors.WARNING + bcolors.BOLD + "Signature: " +bcolors.ENDC
-                    print req['resultStatus']['receipts'][0]['receipt']
-                    print "\n"
+                    if cc.verify(cert=source_cert, data= message, sign= receiptSigned) and cc.signatureValidity(cert=source_cert, timestamp=timestamp):
+                        print bcolors.OKGREEN + bcolors.BOLD + "Signed and Verified! (Read at "+ str(time.ctime(int(timestamp) / 1000)) +")\n" + bcolors.ENDC
+                        print bcolors.WARNING + bcolors.BOLD + "Signature: " +bcolors.ENDC
+                        print str(receiptCleartext)
+                        print "\n"
+                    else:
+                        print bcolors.FAIL + bcolors.BOLD + "Unreliable Message! (Forging attempt at "+ str(time.ctime(int(timestamp) / 1000)) +")\n" + bcolors.ENDC
                 else:
                     print bcolors.WARNING + bcolors.BOLD + "Your Message: " + bcolors.ENDC
                     print str(msg)
                     print "\n" 
                     print bcolors.WARNING + bcolors.FAIL + "The message has not been read yet! " +bcolors.ENDC
-
                 print "\n"
                 print "    ------------------------------------------------"
                 print bcolors.HEADER + bcolors.BOLD + "     Commands: " + bcolors.ENDC
@@ -362,8 +374,6 @@ class Client:
                 return
 
             if 'resultRecv' in req:
-                print self.to_receipt
-                #print req
                 os.system('clear')
                 source = req['resultRecv'][0]
                 msg = req['resultRecv'][1]
@@ -405,31 +415,26 @@ class Client:
 
                
                 if self.to_receipt:        # mandar receipt se for primeira leitura
-                    self.receipt(int(dict_id), str(sign_cleartext))
-
-                '''
-                scanner = raw_input(bcolors.OKBLUE + bcolors.BOLD +"Send Signed Receipt? (y/n)\n" + bcolors.ENDC)
-                option = str(scanner)
-                if option.lower() =='n':
-                    return
-                if option.lower() =='y':
-                    new_timestamp = str(int(time.time() * 1000))
+                    # Verificar estado do certificado
                     self.auth_certificate, self.session = cc.certificate(mode="AUTHENTICATION")
-
+                    timestamp = str(int(time.time() * 1000))
                     if not cc.retrieveStatus(cert= self.auth_certificate, mode="AUTHENTICATION"):
                         print "Your Certificate is revoked! Sorry, aborting ..."
                         return
                     
-                    if not cc.signatureValidity(cert=self.auth_certificate, timestamp=new_timestamp):
+                    if not cc.signatureValidity(cert=self.auth_certificate, timestamp=timestamp):
                         print "Your Signature isn't valid!"
                         return
-                
                     # assinar
-                    #new_signed, cleartext = cc.sign(data=msg, session=self.session, mode="AUTHENTICATION")  
-                    # receipt                      
-                    self.receipt(int(dict_id), "wtf")
+                    signature, cleartext = cc.sign(data=msg, session=self.session, mode="AUTHENTICATION")
 
-                '''
+                    receipt = json.dumps({
+                            "receiptSigned": base64.b64encode(signature),
+                            "receiptCleartext": base64.b64encode(cleartext),
+                            "message" : base64.b64encode(msg),
+                    })      
+                    self.receipt(int(dict_id), receipt)
+
                 return               
 
             if 'resultList' in req:
@@ -722,8 +727,6 @@ class Client:
                 "symKeyCiphered2" : base64.b64encode(symKeyCiphered2),
                 "timestamp": base64.b64encode(timestamp),
         })
-
-        
 
 
         data = {
