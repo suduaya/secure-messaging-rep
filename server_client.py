@@ -65,7 +65,7 @@ class Client:
 
         self.bufin += data
         reqs = self.bufin.split(TERMINATOR)
-        print reqs
+        #print reqs
         self.bufin = reqs[-1]
         return reqs[:-1]
     
@@ -114,10 +114,10 @@ class Client:
         Will log error if called on a client with closed socket.
         Never fails.
         """
-        log(logging.INFO, "Client.close(%s)" % self)
+        log(logging.INFO, " Client.close(%s)" % self)
         try:
             self.socket.close()
         except:
-            logging.exception("Client.close(%s)" % self)
+            logging.exception(" Client.close(%s)" % self)
 
 

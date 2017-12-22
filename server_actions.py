@@ -25,6 +25,16 @@ def privateNumber():
     secret = int(random.randint(0,100))
     return secret
 
+# Colours
+class colors:
+    TITLE = '\033[95m'
+    INFO = '\033[94m'
+    VALID = '\033[92m'
+    WARNING = '\033[93m'
+    ERROR = '\033[91m'
+    END = '\033[0m'
+    BOLD = '\033[1m'
+
 class ServerActions:
     def __init__(self):
 
@@ -72,8 +82,8 @@ class ServerActions:
         """Handle a request from a client socket.
         """
         try:
-            logging.info("HANDLING message from %s: %r" %
-                         (client, repr(request)))
+            #logging.info("HANDLING message from %s: %r" %
+            #             (client, repr(request)))
 
             try:
                 req = json.loads(request)
@@ -119,9 +129,9 @@ class ServerActions:
 
         # Checking integrity
         if (HMAC_new == HMAC_msg) :
-            print "Integrity Checked Sucessfully"
+            print colors.INFO + "Integrity Checked Sucessfully" + colors.END
         else:
-            print "Message forged! Sorry! Aborting ..."
+            print colors.ERROR + "Message forged! Sorry! Aborting ..." + colors.END
             return
 
         # Handling Request
@@ -141,21 +151,14 @@ class ServerActions:
         uuid = data['uuid'] # username
         publicKey = data['Client_pubKey']
 
-        '''
-        if not isinstance(uuid, int):
-            log(logging.ERROR, "No valid \"uuid\" field in \"create\" message: " +
-                json.dumps(data))
-            client.sendResult({"error": "wrong message format"})
-            return'''
-
         if self.registry.userExists(uuid):
-            log(logging.ERROR, "User already exists: " + json.dumps(data))
-            client.sendResult({"error": "uuid already exists"})
+            log(logging.ERROR, colors.ERROR + "User already exists" + colors.END)
+            client.sendResult({"error": "User already exists"})
             return
 
         if self.registry.userDirExists(uuid):
-            log(logging.ERROR, "User already exists: " + json.dumps(data))
-            client.sendResult({"error": "uuid already exists"})
+            log(logging.ERROR, colors.ERROR + "User already exists" + colors.END)
+            client.sendResult({"error": "User already exists"})
             return
 
         # Adiciona novo user
@@ -172,17 +175,27 @@ class ServerActions:
         client.primitive_root = data['primitive_root']
         client.client_pubNum = int(data['Client_pubNum'])
         client.svPrivNum = privateNumber()
+        passphrase = data['passphrase']
+
+        if not self.registry.userDirExists(client.uuid):
+            log(logging.ERROR, colors.ERROR +"Invalid Username" + colors.END)
+            client.sendResult({"error": "Invalid Username!"})
+            return
+
+        # check password and signature validity
+        if not self.registry.checkPassphrase(client.uuid, passphrase):
+            log(logging.ERROR, colors.ERROR +"Authentication failed! Wrong passphrase!"+colors.END)
+            client.sendResult({"error": "Wrong password!"})
+            return
 
         # Compute Shared Key
         client.svPubNum = int(pow(client.primitive_root, client.svPrivNum, client.modulus_prime))
         new_sharedKey = int(pow(client.client_pubNum, client.svPrivNum, client.modulus_prime))
-        client.sharedKey = new_sharedKey 
+        client.sharedKey = new_sharedKey
 
-        if not self.registry.userDirExists(client.uuid):
-            log(logging.ERROR, "User doesnt exists: " + json.dumps(data))
-            client.sendResult({"error": "uuid doenst exists"})
-            return
-
+        # connected
+        log(logging.DEBUG,colors.VALID + "User authenticated: " + colors.END+ client.uuid)
+        
         client.sendResult({"resultDH":{
                                         "Server_pubNum" : client.svPubNum,
                                         "phase" : phase+1
@@ -193,7 +206,7 @@ class ServerActions:
                         })
         # Change Client Status
         client.status = CONNECTED
-
+        
 
     def processList(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
@@ -204,7 +217,7 @@ class ServerActions:
             user = int(data['id'])
             userStr = "user%d" % user
 
-        log(logging.DEBUG, "List %s" % userStr)
+        log(logging.DEBUG,colors.INFO + "List %s" % userStr + colors.END)
 
         userList = self.registry.listUsers(user)
 
@@ -228,6 +241,7 @@ class ServerActions:
 
     def processAll(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
+        log(logging.INFO, colors.INFO + "Message Box" + colors.END)
 
         user = -1
 
@@ -245,6 +259,7 @@ class ServerActions:
 
     def processSend(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
+        log(logging.INFO, colors.INFO + "Sending Message" + colors.END)
 
         if not set(data.keys()).issuperset(set({'src', 'dst', 'msg', 'msg'})):
             log(logging.ERROR,
@@ -275,8 +290,9 @@ class ServerActions:
 
     def processRecv(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
+        log(logging.INFO, colors.INFO + "Receiving Message" + colors.END)
 
-        if not set({'id', 'msg'}).issubset(set(data.keys())):
+        if not set({'uuid', 'msg'}).issubset(set(data.keys())):
             log(logging.ERROR, "Badly formated \"recv\" message: " +
                 json.dumps(data))
             client.sendResult({"error": "wrong message format"})
@@ -302,6 +318,7 @@ class ServerActions:
 
     def processReceipt(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
+        log(logging.INFO, colors.INFO + "New Receipt" + colors.END)
 
         if not set({'id', 'msg', 'receipt'}).issubset(set(data.keys())):
             log(logging.ERROR, "Badly formated \"receipt\" message: " +
@@ -321,6 +338,7 @@ class ServerActions:
 
     def processStatus(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
+        log(logging.INFO, colors.INFO + "Message Status" + colors.END)
 
         if not set({'id', 'msg'}).issubset(set(data.keys())):
             log(logging.ERROR, "Badly formated \"status\" message: " +
@@ -336,4 +354,4 @@ class ServerActions:
             return
 
         response = self.registry.getReceipts(fromId, msg)
-        client.sendResult({"resultStatus": response})
+        client.sendResult({"resultStatus": response, "id": msg})

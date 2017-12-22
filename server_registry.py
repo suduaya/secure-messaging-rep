@@ -155,7 +155,6 @@ class ServerRegistry:
         return userList
 
     def userDirExists(self,uuid):
-
         for key in self.users.keys():
             description= self.users[key]['description']
             if description['uuid']==uuid:
@@ -187,6 +186,14 @@ class ServerRegistry:
                 id = self.users[k].id
         return id
 
+    def checkPassphrase(self, uuid, passphrase):
+        for k in self.users.keys():
+            if self.users[k].description["uuid"] == uuid:
+                stored_pw = self.users[k].description["passphrase"]
+                if stored_pw == passphrase:
+                    return True
+        return False
+        
     def userAllMessages(self, uid):
         return self.userMessages(self.userMessageBox(uid), "_?[0-9]+_[0-9]+")
 
@@ -220,7 +227,6 @@ class ServerRegistry:
         while True:
             #path = os.path.join(basename, str(i))
             path = basename + str(i)
-            print path
             if not os.path.exists(path):
                 return str(i)
 
@@ -238,8 +244,6 @@ class ServerRegistry:
 
             nr1 = self.newFile(path)
             nr2 = self.newFile(path2)
-            print nr1
-            print nr2
             nr = max(nr1, nr2)
             self.saveOnFile(path + nr, msg)
 
@@ -264,8 +268,6 @@ class ServerRegistry:
                 f = os.path.join(path, msg)
                 path = os.path.join(path, "_" + msg)
                 log(logging.DEBUG, "Marking message " + msg + " as read")
-                print f
-                print path
                 os.rename(f, path)
             except:
                 logging.exception("Cannot rename message file to " + path)
@@ -336,7 +338,6 @@ class ServerRegistry:
         result = {"msg": copy, "receipts": []}
 
         for fname in os.listdir(boxdir):
-            print fname
             m = pattern.match(fname)
             if m and m.group(1) == msg:
                 path = os.path.join(self.userReceiptBox(uid), fname)

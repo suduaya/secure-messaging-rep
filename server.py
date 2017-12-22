@@ -106,10 +106,10 @@ class Server:
         data = None
         try:
             data = s.recv(BUFSIZE)
-            log(logging.DEBUG,
-                "Received data from %s. Message:\n%r" % (client, data))
+            #log(logging.DEBUG,
+            #    "Received data from %s. Message:\n%r" % (client, data))
         except:
-            logging.exception("flushin: recv(%s)" % client)
+            #logging.exception("flushin: recv(%s)" % client)
             self.delClient(s)
         else:
             if len(data) > 0:
@@ -130,8 +130,8 @@ class Server:
         client = self.clients[s]
         try:
             sent = client.socket.send(client.bufout[:BUFSIZE])
-            log(logging.DEBUG, "Sent %d bytes to %s. Message:\n%r" %
-                (sent, client, client.bufout[:sent]))
+            #log(logging.DEBUG, "Sent %d bytes to %s. Message:\n%r" %
+            #    (sent, client, client.bufout[:sent]))
             # leave remaining to be sent later
             client.bufout = client.bufout[sent:]
         except:

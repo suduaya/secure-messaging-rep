@@ -1,6 +1,7 @@
 import select, socket, sys
 import json
 import sys
+import getpass
 import ast
 import time, base64
 import random
@@ -39,15 +40,14 @@ def privateNumber():
     return secret
 
 # Colours
-class bcolors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKGREEN = '\033[92m'
+class colors:
+    TITLE = '\033[95m'
+    INFO = '\033[94m'
+    VALID = '\033[92m'
     WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
+    ERROR = '\033[91m'
+    END = '\033[0m'
     BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
 
 # Client class
 class Client:
@@ -61,17 +61,17 @@ class Client:
     def __init__(self, host, port):
         self.ss = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.ss.connect((host, port))
-        logging.info(bcolors.OKBLUE+"Client listening on"+bcolors.ENDC+"%s", self.ss.getsockname())
+        logging.info(colors.INFO+"Client listening on"+colors.END+"%s", self.ss.getsockname())
         self.inputs = []        # Sockets from which we expect to read
 
         # Login stuff
-        self.uuid = str(sys.argv[1])
-        self.passphrase = str(sys.argv[2])
+        self.uuid = None
+        self.passphrase = None
         self.id = None
         self.name = None
         self.certificate = None
         self.serialnumber = None
-        self.myDirPath = "clients/" + str(self.uuid)
+        self.myDirPath = None
 
         # Buffers
         self.bufin = ""
@@ -115,10 +115,10 @@ class Client:
             with open(path, "rb") as f:
                 key = RSA.importKey(f.read(), self.passphrase)  # import with passphrase
                 self.pubKey, self.privKey = key.publickey().exportKey(format='PEM'),key.exportKey(format='PEM', passphrase=self.passphrase)
-                print bcolors.OKBLUE+ "Keys Sucessfully Loaded!" + bcolors.ENDC
+                print colors.INFO+ "Keys Sucessfully Loaded!" + colors.END
                 return True
         except:
-            print bcolors.FAIL+ "Error! Wrong Passphrase! Aborting..." + bcolors.ENDC
+            print colors.ERROR+ "Error! Wrong Passphrase! Aborting..." + colors.END
             return False
         return False
 
@@ -126,7 +126,7 @@ class Client:
         self.pubKey, self.privKey = security.get_keys(self.passphrase)
         try:
             os.mkdir(self.myDirPath)
-            print bcolors.OKBLUE+ "User Dir(keys) created!"+ bcolors.ENDC
+            print colors.INFO+ "User Dir(keys) created!"+ colors.END
         except:
             pass
 
@@ -235,9 +235,13 @@ class Client:
             if not isinstance(req, dict):
                 return
 
+            if 'error' in req:
+                print colors.ERROR+req['error']+colors.END
+                self.stop()
+
             if 'resultSend' in req:
                 # mensagem enviada correctamente
-                print bcolors.OKBLUE + "Message Sent Sucessfully!" + bcolors.ENDC
+                print colors.INFO + "Message Sent Sucessfully!" + colors.END
                 return
 
             if 'resultAll' in req:
@@ -260,8 +264,8 @@ class Client:
                 # ordered mail, new messages first
                 self.mailBox = self.newMails + self.inbox   
 
-                print bcolors.OKGREEN + bcolors.BOLD + "            Mensagens (Inbox/Outbox): \n" + bcolors.ENDC
-                print bcolors.WARNING + str(len(self.mailBox)) + " Received Messages: " + bcolors.ENDC
+                print colors.VALID + colors.BOLD + "            Mensagens (Inbox/Outbox): \n" + colors.END
+                print colors.WARNING + str(len(self.mailBox)) + " Received Messages: " + colors.END
                 if len(self.mailBox) == 0:
                         print "You didnt received any message yet.\n"
                 for mail in self.mailBox:
@@ -272,9 +276,9 @@ class Client:
                     else:
                         i = i + 1
                         aux = mail.split('_')
-                        print str(i) + "- Message " +  str(aux[1]) + " from " +  self.getUUID(str(aux[0])) + bcolors.FAIL +" (NEW!)"+bcolors.ENDC
+                        print str(i) + "- Message " +  str(aux[1]) + " from " +  self.getUUID(str(aux[0])) + colors.ERROR +" (NEW!)"+colors.END
                 print "\n"
-                print bcolors.WARNING + str(len(self.outbox))  + " Sent Messages: " + bcolors.ENDC
+                print colors.WARNING + str(len(self.outbox))  + " Sent Messages: " + colors.END
                 if len(self.outbox) == 0:
                         print "You didnt send any message yet.\n"
                 i = 0
@@ -285,11 +289,11 @@ class Client:
                 print "\n"
                 print "\n"
                 print "    ------------------------------------------------"
-                print bcolors.HEADER + bcolors.BOLD + "     Commands: " + bcolors.ENDC
-                print bcolors.WARNING +"        (/send  <user> <text>)" + bcolors.ENDC + "  Send a Message"
-                print bcolors.WARNING +"        (/recv   <msg_number>)" + bcolors.ENDC + "  Read message"
-                print bcolors.WARNING +"        (/status <msg_number>)" + bcolors.ENDC + "  Check Receipt Status"
-                print bcolors.WARNING +"        (<)                   " + bcolors.ENDC + "  Main Menu"
+                print colors.TITLE + colors.BOLD + "     Commands: " + colors.END
+                print colors.WARNING +"        (/send  <user> <text>)" + colors.END + "  Send a Message"
+                print colors.WARNING +"        (/recv   <msg_number>)" + colors.END + "  Read message"
+                print colors.WARNING +"        (/status <msg_number>)" + colors.END + "  Check Receipt Status"
+                print colors.WARNING +"        (<)                   " + colors.END + "  Main Menu"
                 print "    ------------------------------------------------"
 
                 # inbox, outbox
@@ -308,69 +312,77 @@ class Client:
                 symKeyCiphered2 = base64.b64decode(msg['symKeyCiphered2'])
 
                 # parse signed receipt
-                receiptDict =  json.loads(req['resultStatus']['receipts'][0]['receipt'])
-                receiptSigned = base64.b64decode(receiptDict['receiptSigned'])
-                receiptCleartext = base64.b64decode(receiptDict['receiptCleartext'])
-                message = base64.b64decode(receiptDict['message'])
-
-                # source username, certificate
-                source = self.getUUID(req['resultStatus']['receipts'][0]['id'])
-                source_cert = self.getCert(username=source)
-
-                # timestamp
-                timestamp = req['resultStatus']['receipts'][0]['date']
+                try:
+                    receiptDict =  json.loads(req['resultStatus']['receipts'][0]['receipt'])
+                    receiptSigned = base64.b64decode(receiptDict['receiptSigned'])
+                    receiptCleartext = base64.b64decode(receiptDict['receiptCleartext'])
+                    message = base64.b64decode(receiptDict['message'])
+                    # source username, certificate
+                    source_rec = self.getUUID(req['resultStatus']['receipts'][0]['id'])
+                    source_cert = self.getCert(username=source_rec)
+                    # timestamp
+                    timestamp = req['resultStatus']['receipts'][0]['date']
+                except:
+                    pass
+                
+                #sent to..
+                source = self.getUUID(req['id'][0])
 
                 # decipher msg
                 msg = self.hybrid(operation='decipher', data=str(messageCiphered2), data_key=str(symKeyCiphered2))
 
-                print bcolors.HEADER + bcolors.BOLD + "                 Receipt Status " + bcolors.ENDC
+                print colors.TITLE + colors.BOLD + "                 Receipt Status " + colors.END
                 if req['resultStatus']['receipts'] != []: # mensagem lida
-                    print bcolors.OKGREEN + bcolors.BOLD + "Sent to: " + bcolors.ENDC + str(self.getUUID(req['resultStatus']['receipts'][0]['id']))
-                    print bcolors.WARNING + bcolors.BOLD + "Your Message: " + bcolors.ENDC
+                    print colors.VALID + colors.BOLD + "Sent to: " + colors.END + str(source)
+                    print colors.WARNING + colors.BOLD + "Your Message: " + colors.END
                     print str(msg)
                     print "\n" 
                     if cc.verify(cert=source_cert, data= message, sign= receiptSigned) and cc.signatureValidity(cert=source_cert, timestamp=timestamp):
-                        print bcolors.OKGREEN + bcolors.BOLD + "Signed and Verified! (Read at "+ str(time.ctime(int(timestamp) / 1000)) +")\n" + bcolors.ENDC
-                        print bcolors.WARNING + bcolors.BOLD + "Signature: " +bcolors.ENDC
+                        print colors.VALID + colors.BOLD + "Signed and Verified! (Read at "+ str(time.ctime(int(timestamp) / 1000)) +")\n" + colors.END
+                        print colors.WARNING + colors.BOLD + "Signature: " +colors.END
                         print str(receiptCleartext)
                         print "\n"
                     else:
-                        print bcolors.FAIL + bcolors.BOLD + "Unreliable Message! (Forging attempt at "+ str(time.ctime(int(timestamp) / 1000)) +")\n" + bcolors.ENDC
+                        print colors.ERROR + colors.BOLD + "Unreliable Message! (Forging attempt at "+ str(time.ctime(int(timestamp) / 1000)) +")\n" + colors.END
                 else:
-                    print bcolors.WARNING + bcolors.BOLD + "Your Message: " + bcolors.ENDC
+                    print colors.VALID + colors.BOLD + "Sent to: " + colors.END + str(source)
+                    print colors.WARNING + colors.BOLD + "Your Message: " + colors.END
                     print str(msg)
                     print "\n" 
-                    print bcolors.WARNING + bcolors.FAIL + "The message has not been read yet! " +bcolors.ENDC
+                    print colors.WARNING + colors.ERROR + "The message has not been read yet! " +colors.END
                 print "\n"
                 print "    ------------------------------------------------"
-                print bcolors.HEADER + bcolors.BOLD + "     Commands: " + bcolors.ENDC
-                print bcolors.WARNING +"        (/all)    " + bcolors.ENDC + "Return to Message Box"
-                print bcolors.WARNING +"        (<)       " + bcolors.ENDC + "Main Menu"
+                print colors.TITLE + colors.BOLD + "     Commands: " + colors.END
+                print colors.WARNING +"        (/all)    " + colors.END + "Return to Message Box"
+                print colors.WARNING +"        (<)       " + colors.END + "Main Menu"
                 print "    ------------------------------------------------"
 
                 return
 
-            if 'resultDH' in req:       
-                #connect to server, calculate shared/session key
+            if 'resultDH' in req:     
+                # connect to server, calculate shared/session key
                 self.serverPubNum = int(req['resultDH']['Server_pubNum'])
                 self.serverPubKey = req['server_pubkey']
                 self.sharedKey = int(pow(self.serverPubNum,self.privNum, self.modulus_prime))
-
-                # state changed to connected
-                self.state = CONNECTED
 
                 # load keys and data registered on server(id, name), passphrase is checked
                 if self.loadKeys():
                     self.id = req['id']
                     self.name = req['name']
-                    print bcolors.OKBLUE+"Sucessfully Connected!"+bcolors.ENDC
+
+                    # state changed to connected
+                    self.state = CONNECTED
+                    print colors.INFO+"Sucessfully Connected!"+colors.END
+
                     # synchronizing users details
                     self.listUserMsgBox()
                     time.sleep(1)
                     os.system('clear')
                     self.show_menu() 
                 else:
-                    print bcolors.FAIL+"Connection Denied!"+bcolors.ENDC  
+                    # connection ERRORed
+                    self.state = NOT_CONNECTED
+                    print colors.ERROR+"Connection Denied!"+colors.END  
                 return
 
             if 'resultRecv' in req:
@@ -397,20 +409,20 @@ class Client:
 
                 msg_nr = str(req['resultRecv'][2])
                 dict_id = self.getKeyByValue(msg_nr)  # indicates message in self.mail
-                print bcolors.OKGREEN + bcolors.BOLD + "Source: " + bcolors.ENDC + str(source)
-                print bcolors.WARNING + bcolors.BOLD + "Message: " +bcolors.ENDC
+                print colors.VALID + colors.BOLD + "Source: " + colors.END + str(source)
+                print colors.WARNING + colors.BOLD + "Message: " +colors.END
                 print msg
                 print "\n"
                 if cc.verify(cert=source_cert, data= msg, sign= signature) and cc.signatureValidity(cert=source_cert, timestamp=sent_timestamp):
-                    print bcolors.OKGREEN + bcolors.BOLD + "Signed and Verified!\n" + bcolors.ENDC
+                    print colors.VALID + colors.BOLD + "Signed and Verified!\n" + colors.END
                 else:
-                    print bcolors.FAIL + bcolors.BOLD + "Unreliable Message!\n" + bcolors.ENDC
+                    print colors.ERROR + colors.BOLD + "Unreliable Message!\n" + colors.END
 
                 print "\n"
                 print "    ------------------------------------------------"
-                print bcolors.HEADER + bcolors.BOLD + "     Commands: " + bcolors.ENDC
-                print bcolors.WARNING +"        (/all)    " + bcolors.ENDC + "      Return to Message Box"
-                print bcolors.WARNING +"        (<)       " + bcolors.ENDC + "      Main Menu"
+                print colors.TITLE + colors.BOLD + "     Commands: " + colors.END
+                print colors.WARNING +"        (/all)    " + colors.END + "      Return to Message Box"
+                print colors.WARNING +"        (<)       " + colors.END + "      Main Menu"
                 print "    ------------------------------------------------"
 
                
@@ -441,9 +453,9 @@ class Client:
                 arrayAux = []
                 if self.sync == False:
                     os.system('clear')
-                    print bcolors.OKGREEN + bcolors.BOLD + "\tMessageBoxes List (users): \n" + bcolors.ENDC
-                    print bcolors.FAIL + "Hi "+ bcolors.WARNING + str(self.uuid) + bcolors.FAIL+", this is a list of users which you can exchange messages! \n"+bcolors.ENDC
-                    print bcolors.OKGREEN + bcolors.BOLD + "Available Users:" + bcolors.ENDC
+                    print colors.VALID + colors.BOLD + "\tMessageBoxes List (users): \n" + colors.END
+                    print colors.ERROR + "Hi "+ colors.WARNING + str(self.uuid) + colors.ERROR+", this is a list of users which you can exchange messages! \n"+colors.END
+                    print colors.VALID + colors.BOLD + "Available Users:" + colors.END
                 for x in req['resultList']:
                     aux = {}
                     aux['id'] = x['id']
@@ -451,18 +463,18 @@ class Client:
                     arrayAux.append(aux)
                     if self.sync == False:
                         if (x['description']['uuid'] != (self.uuid)):
-                            print bcolors.WARNING +'Username: ' +bcolors.ENDC + str(x['description']['uuid']) + " \t " + bcolors.WARNING +'Nome: ' +bcolors.ENDC+(x['description']['name']).encode('utf-8')
+                            print colors.WARNING +'Username: ' +colors.END + str(x['description']['uuid']) + " \t " + colors.WARNING +'Nome: ' +colors.END+(x['description']['name']).encode('utf-8')
                 if self.sync == False:
                     print "\n"
-                    print bcolors.HEADER + bcolors.BOLD + "Commands: " + bcolors.ENDC
-                    print bcolors.WARNING +"(<)    " + bcolors.ENDC + " go back to main menu"
+                    print colors.TITLE + colors.BOLD + "Commands: " + colors.END
+                    print colors.WARNING +"(<)    " + colors.END + " go back to main menu"
                 self.Users = arrayAux
                 self.sync = False
                 return
 
             if 'resultCreate' in req:
                 self.id =  req['resultCreate']
-                print bcolors.OKGREEN + "You may connect now! (/connect)" + bcolors.ENDC
+                print colors.VALID + "You may connect now! (/connect)" + colors.END
                 return
 
             if 'type' not in req:
@@ -496,7 +508,7 @@ class Client:
             if self.checkUser(usernameDst):
                 self.sendMessage(str(fields[1]), fields[2:])
                 return
-            print bcolors.FAIL + "Username not found! Try another one ..." + bcolors.ENDC            
+            print colors.ERROR + "Username not found! Try another one ..." + colors.END            
             return
         if fields[0] == '/recv':
             self.recvMessage(int(fields[1]))
@@ -507,6 +519,10 @@ class Client:
             return
         if fields[0] == '/connect':
             if self.state == NOT_CONNECTED:
+                self.uuid = str(raw_input("Username: "))
+                self.passphrase = str(getpass.getpass('Password: '))
+                self.myDirPath = "clients/" + str(self.uuid)
+                #start connection
                 self.startDH(1)
             else:
                 print "You are already Connected!"
@@ -537,10 +553,10 @@ class Client:
 
         # Checking Integrity
         if (HMAC_new == HMAC_msg) :
-            #print bcolors.OKBLUE + "Integrity Checked Sucessfully" + bcolors.ENDC
+            #print colors.INFO + "Integrity Checked Sucessfully" + colors.END
             return dataFinal
         else:
-            #print bcolors.FAIL + "Message forged! Sorry! Aborting ..." + bcolors.ENDC
+            #print colors.ERROR + "Message forged! Sorry! Aborting ..." + colors.END
             return
 
     def retrieveCCData(self):
@@ -549,16 +565,16 @@ class Client:
             self.sign_certificate, self.session = cc.certificate(mode="SIGNATURE")
 
             self.name, self.serialnumber = cc.getUserDetails(self.auth_certificate)
-            print bcolors.OKBLUE + "Citizen Card loaded!" + bcolors.ENDC
+            print colors.INFO + "Citizen Card loaded!" + colors.END
 
             if not (cc.retrieveStatus(cert= self.auth_certificate, mode="AUTHENTICATION") or cc.retrieveStatus(cert= self.sign_certificate, mode="SIGNATURE")):
-                print bcolors.FAIL + "Citizen Card revoked!" + bcolors.ENDC
+                print colors.ERROR + "Citizen Card revoked!" + colors.END
                 return False
-            print bcolors.OKBLUE + "Citizen Card not revoked!" + bcolors.ENDC
+            print colors.INFO + "Citizen Card not revoked!" + colors.END
             time.sleep(1)
             return True
         except:
-            print bcolors.FAIL + "Failed loading Citizen Card!" + bcolors.ENDC
+            print colors.ERROR + "ERRORed loading Citizen Card!" + colors.END
             return False
         return False
 
@@ -599,6 +615,7 @@ class Client:
                 "type" : "dh",
                 "phase": int(phase),
                 "uuid"   : self.uuid,
+                "passphrase": base64.b64encode(security.SHA256(self.passphrase)),
                 "primitive_root" : self.primitive_root,
                 "modulus_prime"  : self.modulus_prime,
                 "Client_pubNum"  : int(self.pubNum),
@@ -622,13 +639,21 @@ class Client:
                 "msg"  : self.mail[int(msgNr)],
                 "receipt": receipt,
         }
-        print bcolors.OKBLUE + "Receipt Sent Sucessfully!" + bcolors.ENDC
+        print colors.INFO + "Receipt Sent Sucessfully!" + colors.END
         self.send(data)
 
     # Create User Message Box
     def createUserMsgBox(self):
         if self.retrieveCCData():
+            #user details
+            self.uuid = str(raw_input("Username: "))
+            self.passphrase = str(getpass.getpass('Password: '))
+            #update path name
+            self.myDirPath = "clients/" + str(self.uuid)
+            #save keys on path
             self.saveKeys()
+
+            # build dict
             data = {
                     "type": "create",
                     "uuid": self.uuid,
@@ -637,6 +662,7 @@ class Client:
                     "auth_certificate" : self.auth_certificate,
                     "sign_certificate" : self.sign_certificate,
                     "serialnumber" : self.serialnumber,
+                    "passphrase": base64.b64encode(security.SHA256(self.passphrase))
                     }
             self.send(data)
 
@@ -790,36 +816,34 @@ class Client:
             
     # Disconnects
     def stop(self):
-        try:
-            self.disconnect_client("Client Stopped for some reason. Sorry...", client)
-        except:
-            print "Erro!"
-        logging.info("Stopping Client")
+        self.state = NOT_CONNECTED
+        """ Stops the client closing all sockets
+        """
         try:
             self.ss.close()
-        except:
-            logging.exception("Client.stop")
-        logging.info("Client Stopped!")
+        except Exception:
+            pass
+        
     
     
     # Menu inicial
     def show_initmenu(self):
-        print bcolors.HEADER + bcolors.BOLD + "             Secure Messaging Repository System\n" + bcolors.ENDC
+        print colors.TITLE + colors.BOLD + "             Secure Messaging Repository System\n" + colors.END
 
-        print bcolors.WARNING + "       (/create)                 " + bcolors.ENDC + "Create Account\n" + \
-              bcolors.WARNING + "       (/connect)                " + bcolors.ENDC + "Connect to Message Repository\n" + \
-              bcolors.HEADER + bcolors.BOLD + "\n"+ "Command:" + bcolors.ENDC
+        print colors.WARNING + "       (/create)                 " + colors.END + "Create Account\n" + \
+              colors.WARNING + "       (/connect)                " + colors.END + "Connect to Message Repository\n" + \
+              colors.TITLE + colors.BOLD + "\n"+ "Command:" + colors.END
         return
 
     # Menu principal
     def show_menu(self):
-        print bcolors.HEADER + bcolors.BOLD + "             Secure Messaging Repository System\n" + bcolors.ENDC
+        print colors.TITLE + colors.BOLD + "             Secure Messaging Repository System\n" + colors.END
         print "     ---------------------------------------------------"
-        print bcolors.WARNING + "       (/list)                   " + bcolors.ENDC + "List Connected Users\n" + \
-              bcolors.WARNING + "       (/all)                    " + bcolors.ENDC + "My Message Box\n" +\
-              bcolors.WARNING + "       (/send  <user> <text>)    " + bcolors.ENDC + "Send a Message"
+        print colors.WARNING + "       (/list)                   " + colors.END + "List Connected Users\n" + \
+              colors.WARNING + "       (/all)                    " + colors.END + "My Message Box\n" +\
+              colors.WARNING + "       (/send  <user> <text>)    " + colors.END + "Send a Message"
         print "     ---------------------------------------------------"
-        print bcolors.HEADER + bcolors.BOLD + "\n"+ "Command:" + bcolors.OKGREEN + "                                        Connected as "+ bcolors.ENDC + str(self.uuid)
+        print colors.TITLE + colors.BOLD + "\n"+ "Command:" + colors.VALID + "                                        Connected as "+ colors.END + str(self.uuid)
         return
 
 if __name__ == "__main__":
@@ -827,18 +851,18 @@ if __name__ == "__main__":
 
     clnt = None
     try:
-        logging.info(bcolors.OKBLUE+"Starting Client"+bcolors.ENDC)
+        logging.info(colors.INFO+"Starting Client"+colors.END)
         clnt = Client(HOST, PORT)
         clnt.loop()
     except KeyboardInterrupt:
         clnt.stop()
         try:
-            logging.info(bcolors.OKBLUE+"Press CTRL-C again within 2 sec to quit"+bcolors.ENDC)
+            logging.info(colors.INFO+"Press CTRL-C again within 2 sec to quit"+colors.END)
             time.sleep(2)
         except KeyboardInterrupt:
-            logging.info(bcolors.OKBLUE+"CTRL-C pressed twice: Quitting!"+bcolors.ENDC)
+            logging.info(colors.INFO+"CTRL-C pressed twice: Quitting!"+colors.END)
     except:
-        logging.exception(bcolors.FAIL+"Client ERROR"+bcolors.ENDC)
+        logging.exception(colors.ERROR+"Client ERROR"+colors.END)
         if clnt is not (None):
             clnt.stop()
         time.sleep(10)

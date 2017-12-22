@@ -13,6 +13,9 @@ pad = lambda s: s + (BlockSize - len(s) % BlockSize) * chr(BlockSize - len(s) % 
 unpad = lambda s : s[:-ord(s[len(s)-1:])]
 
 class Security:
+    def SHA256(self, message):
+        return SHA256.new(message).digest()
+        
     ###############################################SYMMETRIC############################################################
     def AES(self, message, key):
         #key = self.get_symmetricKey(keyBits)
