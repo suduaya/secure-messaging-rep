@@ -21,7 +21,15 @@ NOT_CONNECTED = 2
 TERMINATOR = "\r\n"
 MAX_BUFSIZE = 64 * 1024
 
-sys.tracebacklimit = 30
+# Colours
+class colors:
+    TITLE = '\033[95m'
+    INFO = '\033[94m'
+    VALID = '\033[92m'
+    WARNING = '\033[93m'
+    ERROR = '\033[91m'
+    END = '\033[0m'
+    BOLD = '\033[1m'
 
 class Client:
     count = 0
@@ -70,6 +78,7 @@ class Client:
         return reqs[:-1]
     
     def processSecure(self, message):
+        log(logging.INFO, colors.INFO + " Secure Response" + colors.END)
         # Derivated from Session Key
         kdf_key = security.kdf(str(self.sharedKey), self.salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
 

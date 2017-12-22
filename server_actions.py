@@ -49,6 +49,7 @@ class ServerActions:
             'status': self.processStatus,
             'dh': self.processDH,
             'secure': self.processSecure,
+            'refresh': self.processRefresh,
         }
         # Registry
         self.registry = ServerRegistry()
@@ -109,9 +110,40 @@ class ServerActions:
         except Exception, e:
             logging.exception("Could not handle request")
 
+
+    def processRefresh(self, data, client):
+        log(logging.INFO, colors.INFO + " Refreshing Keys" + colors.END)
+        client_pubkey = data['publickey']
+        client.client_pubKey = client_pubkey
+        client.modulus_prime = data['modulus_prime']
+        client.primitive_root = data['primitive_root']
+        client.client_pubNum = int(data['Client_pubNum'])
+        client.svPrivNum = privateNumber()
+
+        if not self.registry.updatePublicKey(client.uuid, client_pubkey):
+            log(logging.INFO, colors.ERROR + "Error while trying to update Public Key" + colors.END)
+            return
+
+        # Compute New Shared Key
+        client.svPubNum = int(pow(client.primitive_root, client.svPrivNum, client.modulus_prime))
+        new_sharedKey = int(pow(client.client_pubNum, client.svPrivNum, client.modulus_prime))
+        
+
+        log(logging.INFO, colors.VALID + " Keys Updated" + colors.END)
+
+        client.sendResult({"resultRefresh":{
+                                        "Server_pubNum" : client.svPubNum,
+                                    },
+                            "server_pubkey" : self.pubKey,
+                        })
+
+        client.sharedKey = new_sharedKey
+
     def processSecure(self, data, client):
         """ Process Message with type field "secure"
         """
+        print "\n"
+        log(logging.INFO, colors.INFO + " Secure Request " + colors.WARNING + "     username: " + colors.END+ client.uuid +colors.WARNING + colors.END)
         client.client_pubKey = base64.b64decode(data['client_pubkey'])
         content = base64.b64decode(data['content'])
         client.salt = base64.b64decode(data['salt'])
@@ -129,9 +161,9 @@ class ServerActions:
 
         # Checking integrity
         if (HMAC_new == HMAC_msg) :
-            print colors.INFO + "Integrity Checked Sucessfully" + colors.END
+            log(logging.INFO, colors.VALID + " Integrity Checked Sucessfully" + colors.END)
         else:
-            print colors.ERROR + "Message forged! Sorry! Aborting ..." + colors.END
+            log(logging.INFO, colors.ERROR + " Message forged! Sorry! Aborting ..." + colors.END)
             return
 
         # Handling Request
@@ -168,6 +200,7 @@ class ServerActions:
 
 
     def processDH(self, data, client):
+        log(logging.INFO, colors.INFO + " Authenticating" + colors.END)
         client.uuid = data['uuid']                      # username = uuid
         client.id = self.registry.getId(data['uuid'])   # uuid -> traducao para ID
         phase = int(data['phase'])
@@ -241,7 +274,7 @@ class ServerActions:
 
     def processAll(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
-        log(logging.INFO, colors.INFO + "Message Box" + colors.END)
+        log(logging.INFO, colors.INFO + " Message Box" + colors.END)
 
         user = -1
 
@@ -317,7 +350,7 @@ class ServerActions:
         client.sendResult({"resultRecv": response})
 
     def processReceipt(self, data, client):
-        log(logging.DEBUG, "%s" % json.dumps(data))
+        #log(logging.DEBUG, "%s" % json.dumps(data))
         log(logging.INFO, colors.INFO + "New Receipt" + colors.END)
 
         if not set({'id', 'msg', 'receipt'}).issubset(set(data.keys())):
@@ -338,7 +371,7 @@ class ServerActions:
 
     def processStatus(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
-        log(logging.INFO, colors.INFO + "Message Status" + colors.END)
+        log(logging.INFO, colors.INFO + " Message Status" + colors.END)
 
         if not set({'id', 'msg'}).issubset(set(data.keys())):
             log(logging.ERROR, "Badly formated \"status\" message: " +

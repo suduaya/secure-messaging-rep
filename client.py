@@ -7,6 +7,8 @@ import time, base64
 import random
 import logging, socket, datetime
 import os
+from os import listdir
+from os.path import isfile, join
 from Crypto.Hash import SHA512, HMAC, SHA256
 from Crypto.Random import random
 from Crypto.PublicKey import RSA
@@ -102,23 +104,67 @@ class Client:
 
     ################################################################################### Aux Functions ###############################################################################
 
+    def getKeyDir(self, timestamp, mypath):
+        # searches key in dirs by timestamp
+
+        directories = [f for f in listdir(mypath) if os.path.isdir(mypath+"/"+f)]
+
+        for d in directories:
+            period = d.split("_")
+            not_before = int(period[0])
+
+            if period[1] != "":
+                not_after = int(period[1])
+                if int(timestamp) >= not_before and int(timestamp) < not_after:
+                    return mypath+"/"+d
+            else:
+                not_after = str(period[1])
+                if int(timestamp) >= not_before:
+                    return mypath+"/"+d
+
+    def putKeyDir(self, timestamp, mypath=None):
+        # organize and creates dirs by timestamp,
+        # dirname = notbefore_notafter  for past keys
+        # dirname = notbefore_          for last key in use
+        # mypath = client keys path
+
+        directories = [f for f in listdir(mypath) if os.path.isdir(mypath+"/"+f)]
+
+        if len(directories) > 0:
+            for d in directories:
+                # parsing dir name
+                period = d.split("_")
+
+                if period[1] == "": #found dir to rename and mkdir new one
+                    if (int(timestamp) > int(period[0])):
+                        dir_path = mypath+"/"+d
+
+                        # changes
+                        os.rename(dir_path, dir_path+str(timestamp))
+                        os.mkdir(mypath+"/"+str(timestamp)+"_")
+                        return mypath+"/"+str(timestamp)+"_"
+        else:
+            os.mkdir(mypath+"/"+str(timestamp)+"_")
+            return mypath+"/"+str(timestamp)+"_"
+
     def getKeyByValue(self, value):
         for k, v in self.mail.items():
             if str(value) == v or isinstance(v, list) and str(value) in v:
                 return k
         return None
         
-    def loadKeys(self):
+    def loadKeys(self, timestamp):
+        keypath = self.getKeyDir(timestamp=timestamp, mypath= self.myDirPath)
         # user path to keys
-        path = self.myDirPath + "/key.pem"
+        path = keypath + "/key.pem"
         try:
             with open(path, "rb") as f:
                 key = RSA.importKey(f.read(), self.passphrase)  # import with passphrase
                 self.pubKey, self.privKey = key.publickey().exportKey(format='PEM'),key.exportKey(format='PEM', passphrase=self.passphrase)
-                print colors.INFO+ "Keys Sucessfully Loaded!" + colors.END
+                #print colors.INFO+ "Keys Sucessfully Loaded!" + colors.END
                 return True
         except:
-            print colors.ERROR+ "Error! Wrong Passphrase! Aborting..." + colors.END
+            #print colors.ERROR+ "Error! Wrong Passphrase! Aborting..." + colors.END
             return False
         return False
 
@@ -130,8 +176,12 @@ class Client:
         except:
             pass
 
+        # actual time
+        timestamp= str(int(time.time() * 1000))
+        keypath = self.putKeyDir(timestamp= timestamp, mypath= self.myDirPath)
+
         # into file, client dir
-        path = self.myDirPath + "/key.pem"
+        path = keypath + "/key.pem"
         data = self.privKey     # PEM already
 
         with open(path, "wb") as f:
@@ -175,12 +225,16 @@ class Client:
             if y['description']['uuid'] == str(username):
                 return str(y['description']['auth_certificate'])
 
-    def hybrid(self, operation, data, data_key=None):
+    def hybrid(self, operation, data, data_key=None, timestamp=None):
         """
         Function used to cipher/decipher requests, generates symetric 
         key and ciphers with pubKey of dst or deciphers with my privKey
         """
         if operation == 'cipher':
+            #update to atual key
+            actual_timestamp= str(int(time.time() * 1000))
+            self.loadKeys(actual_timestamp)
+
             symKey = security.get_symmetricKey(256)
             instance = RSA.importKey(data_key)
 
@@ -190,6 +244,8 @@ class Client:
             return a, b  # data ciphered with symKey, symKey ciphered with server pubKey
 
         if operation == 'decipher':
+            self.loadKeys(timestamp)
+
             instance = RSA.importKey(self.privKey, self.passphrase)
 
             b = security.rsaDecipher(message=data_key, key=instance)
@@ -242,6 +298,15 @@ class Client:
             if 'resultSend' in req:
                 # mensagem enviada correctamente
                 print colors.INFO + "Message Sent Sucessfully!" + colors.END
+                return
+
+            if 'resultRefresh' in req:
+                 # connect to server, calculate shared/session key
+                self.serverPubNum = int(req['resultRefresh']['Server_pubNum'])
+                self.serverPubKey = req['server_pubkey']
+                self.sharedKey = int(pow(self.serverPubNum,self.privNum, self.modulus_prime))
+                print colors.INFO + "Keys Updated" + colors.END
+
                 return
 
             if 'resultAll' in req:
@@ -329,7 +394,7 @@ class Client:
                 source = self.getUUID(req['id'][0])
 
                 # decipher msg
-                msg = self.hybrid(operation='decipher', data=str(messageCiphered2), data_key=str(symKeyCiphered2))
+                msg = self.hybrid(operation='decipher', data=str(messageCiphered2), data_key=str(symKeyCiphered2), timestamp=str(timestamp))
 
                 print colors.TITLE + colors.BOLD + "                 Receipt Status " + colors.END
                 if req['resultStatus']['receipts'] != []: # mensagem lida
@@ -366,7 +431,7 @@ class Client:
                 self.sharedKey = int(pow(self.serverPubNum,self.privNum, self.modulus_prime))
 
                 # load keys and data registered on server(id, name), passphrase is checked
-                if self.loadKeys():
+                if self.loadKeys(timestamp= str(int(time.time() * 1000))):
                     self.id = req['id']
                     self.name = req['name']
 
@@ -401,7 +466,7 @@ class Client:
                 sign_cleartext = base64.b64decode(signature_dict['cleartext'])
 
                 # decipher msg
-                msg = self.hybrid(operation='decipher', data=str(messageCiphered), data_key=str(symKeyCiphered))
+                msg = self.hybrid(operation='decipher', data=str(messageCiphered), data_key=str(symKeyCiphered), timestamp=str(sent_timestamp))
                 
                 # username and cert
                 source = self.getUUID(str(source))
@@ -409,11 +474,14 @@ class Client:
 
                 msg_nr = str(req['resultRecv'][2])
                 dict_id = self.getKeyByValue(msg_nr)  # indicates message in self.mail
+
+
+                print colors.TITLE + colors.BOLD + "                    Message "+ msg_nr[-1] + colors.END
                 print colors.VALID + colors.BOLD + "Source: " + colors.END + str(source)
                 print colors.WARNING + colors.BOLD + "Message: " +colors.END
                 print msg
                 print "\n"
-                if cc.verify(cert=source_cert, data= msg, sign= signature) and cc.signatureValidity(cert=source_cert, timestamp=sent_timestamp):
+                if cc.verify(cert=source_cert, data= messageCiphered, sign= signature) and cc.signatureValidity(cert=source_cert, timestamp=sent_timestamp):
                     print colors.VALID + colors.BOLD + "Signed and Verified!\n" + colors.END
                 else:
                     print colors.ERROR + colors.BOLD + "Unreliable Message!\n" + colors.END
@@ -470,6 +538,8 @@ class Client:
                     print colors.WARNING +"(<)    " + colors.END + " go back to main menu"
                 self.Users = arrayAux
                 self.sync = False
+
+                self.refreshKeys()
                 return
 
             if 'resultCreate' in req:
@@ -574,7 +644,7 @@ class Client:
             time.sleep(1)
             return True
         except:
-            print colors.ERROR + "ERRORed loading Citizen Card!" + colors.END
+            print colors.ERROR + "Error while loading Citizen Card!" + colors.END
             return False
         return False
 
@@ -605,6 +675,28 @@ class Client:
                         self.handleInput(input)
     
     ################################################################################ Client Messages ################################################################################
+    def refreshKeys(self):
+        #save old key pair and generates new one
+        self.saveKeys()
+        # nova session key
+        #self.startDH(1)
+        #self.loadKeys(timestamp = str(int(time.time() * 1000)))
+        self.primitive_root = PRIMITIVE_ROOT
+        self.modulus_prime = MODULUS_PRIME
+        self.privNum = privateNumber()
+        self.pubNum =  get_pubNum(self.primitive_root, self.privNum, self.modulus_prime)
+        data = {
+                "type" : "dh",
+                "type" : "refresh",
+                "publickey" : self.pubKey,
+                "primitive_root" : self.primitive_root,
+                "modulus_prime"  : self.modulus_prime,
+                "Client_pubNum"  : int(self.pubNum),
+        }
+        print colors.INFO + "Refreshing Keys..." + colors.END
+
+        self.send(data)
+
     #Start DiffieHelman key exchange
     def startDH(self, phase):
         self.primitive_root = PRIMITIVE_ROOT
@@ -650,7 +742,6 @@ class Client:
             self.passphrase = str(getpass.getpass('Password: '))
             #update path name
             self.myDirPath = "clients/" + str(self.uuid)
-            #save keys on path
             self.saveKeys()
 
             # build dict
@@ -731,7 +822,7 @@ class Client:
             print "Your Signature isn't valid!"
             return
         # assinar
-        signature, cleartext = cc.sign(data=sending, session=self.session, mode="AUTHENTICATION")
+        signature, cleartext = cc.sign(data=messageCiphered, session=self.session, mode="AUTHENTICATION")
 
         # signed stuff
         signed = json.dumps({
@@ -753,7 +844,6 @@ class Client:
                 "symKeyCiphered2" : base64.b64encode(symKeyCiphered2),
                 "timestamp": base64.b64encode(timestamp),
         })
-
 
         data = {
                 "type": "send",
@@ -781,7 +871,8 @@ class Client:
             # Secure Messages with Session Key
             if dict_['type'] == 'list' or dict_['type'] == 'send' \
                 or dict_['type'] == 'getMyId' or dict_['type'] == 'all' or dict_['type'] == 'new' \
-                or dict_['type'] == 'recv' or dict_['type'] == 'dh' or dict_['type'] == 'status' or dict_['type'] == 'receipt':
+                or dict_['type'] == 'recv' or dict_['type'] == 'dh' or dict_['type'] == 'status' \
+                or dict_['type'] == 'receipt' or dict_['type'] == 'refresh':
                 try:
                     # Pronto para encapsular
                     message = (json.dumps(dict_))   

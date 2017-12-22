@@ -186,6 +186,13 @@ class ServerRegistry:
                 id = self.users[k].id
         return id
 
+    def updatePublicKey(self, uuid, publicKey):
+        for k in self.users.keys():
+            if self.users[k].description["uuid"] == uuid:
+                self.users[k].description["Client_pubKey"] == publicKey
+                return True
+        return False
+
     def checkPassphrase(self, uuid, passphrase):
         for k in self.users.keys():
             if self.users[k].description["uuid"] == uuid:
