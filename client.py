@@ -288,7 +288,7 @@ class Client:
             if 'error' in req:
                 # error enviado pelo servidor
                 print colors.ERROR+req['error']+colors.END
-                self.stop()
+                return
 
             if 'resultSend' in req:
                 # mensagem enviada correctamente
@@ -388,16 +388,12 @@ class Client:
                     timestamp = req['resultStatus']['receipts'][0]['date']
                     msg = self.hybrid(operation='decipher', data=str(messageCiphered2), data_key=str(symKeyCiphered2), timestamp=str(timestamp))
                 except:
-                    pass
                     # decipher msg
-                
-                msg = self.hybrid(operation='decipher', data=str(messageCiphered2), data_key=str(symKeyCiphered2), timestamp = str(timestamp_mine))
-                    
+                    msg = self.hybrid(operation='decipher', data=str(messageCiphered2), data_key=str(symKeyCiphered2), timestamp = str(timestamp_mine))
+                    pass        
                 
                 #sent to..
                 source = self.getUUID(req['id'][0])
-
-               
 
 
                 ############################################ GUID ############################################
@@ -449,7 +445,7 @@ class Client:
 
                     # state changed to connected
                     self.state = CONNECTED
-                    print colors.INFO+"Sucessfully Connected!"+colors.END
+                    print colors.INFO+"                Sucessfully Connected!"+colors.END
 
                     # synchronizing users details
                     self.listUserMsgBox()
@@ -460,7 +456,8 @@ class Client:
                     # connection ERROR, session failed
                     # passphrase errada probably (loadKeys), double check servidor-cliente
                     self.state = NOT_CONNECTED
-                    print colors.ERROR+"Connection Denied!"+colors.END  
+                    print colors.ERROR+"                Connection Denied!"+colors.END  
+
                 return
 
             if 'resultRecv' in req:
@@ -626,13 +623,17 @@ class Client:
             return
         if fields[0] == '/connect':
             if self.state == NOT_CONNECTED:
-                self.uuid = str(raw_input("Username: "))
-                self.passphrase = str(getpass.getpass('Password: '))
+                os.system('clear')
+                print "                     -----------------------"
+                print colors.TITLE + colors.BOLD + "                            Log in" + colors.END
+                print "                     -----------------------"
+                self.uuid = str(raw_input(colors.TITLE + colors.INFO + "                Username: "+ colors.END))
+                self.passphrase = str(getpass.getpass(colors.TITLE + colors.INFO + '                Password: '+ colors.END))
                 self.myDirPath = "clients/" + str(self.uuid)
                 #start connection
                 self.startDH(1)
             else:
-                print "You are already Connected!"
+                print "                You are already Connected!"
                 return
             return
         if fields[0] == '/status':
@@ -736,15 +737,38 @@ class Client:
 
     #Start DiffieHelman key exchange
     def startDH(self, phase):
+        
         self.primitive_root = PRIMITIVE_ROOT
         self.modulus_prime = MODULUS_PRIME
         self.privNum = privateNumber()
         self.pubNum =  get_pubNum(self.primitive_root, self.privNum, self.modulus_prime)
+        passphrase = security.SHA256(self.passphrase)
+
+        # Verificar estado do certificado
+        self.auth_certificate, self.session = cc.certificate(mode="AUTHENTICATION")
+
+        # Marcar tempo de leitura
+        timestamp = str(int(time.time() * 1000))
+
+        # Verificar estado do cc
+        if not cc.retrieveStatus(cert= self.auth_certificate, mode="AUTHENTICATION"):
+            print "Your Certificate is revoked! Sorry, aborting ..."
+            return
+
+        # Verificar validade da assinatura
+        if not cc.signatureValidity(cert=self.auth_certificate, timestamp=timestamp):
+            print "Your Signature isn't valid!"
+            return
+
+        # Assinar
+        signed_passphrase, cleartext = cc.sign(data=passphrase, session=self.session, mode="AUTHENTICATION")
+
         data = {
                 "type" : "dh",
                 "phase": int(phase),
                 "uuid"   : self.uuid,
-                "passphrase": base64.b64encode(security.SHA256(self.passphrase)),
+                "passphrase": base64.b64encode(passphrase),
+                "signed_passphrase" : base64.b64encode(signed_passphrase),
                 "primitive_root" : self.primitive_root,
                 "modulus_prime"  : self.modulus_prime,
                 "Client_pubNum"  : int(self.pubNum),
@@ -775,8 +799,12 @@ class Client:
     def createUserMsgBox(self):
         if self.retrieveCCData():
             #user details
-            self.uuid = str(raw_input("Username: "))
-            self.passphrase = str(getpass.getpass('Password: '))
+            os.system('clear')
+            print "                     -----------------------"
+            print colors.TITLE + colors.BOLD + "                            Register" + colors.END
+            print "                     -----------------------"
+            self.uuid = str(raw_input(colors.TITLE + colors.INFO + "                Username: "+ colors.END))
+            self.passphrase = str(getpass.getpass(colors.TITLE + colors.INFO + '                Password: '+ colors.END))
             #update path name
             self.myDirPath = "clients/" + str(self.uuid)
             self.saveKeys()

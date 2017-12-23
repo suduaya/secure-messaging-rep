@@ -65,13 +65,17 @@ class citizencard():
 
         return pem, session    # certificado e sessao
 
-    def getAuthenticationIssuers(self, cert):  # EC Number e CC number
+    def getAuthenticationIssuers(self, cert, mode):  # EC Number e CC number
         obj = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, cert)
         issuer = [x[1] for x in obj.get_issuer().get_components() if x[0]=='CN']
         # exemplo: CN=EC de Autentica\xC3\xA7\xC3\xA3o do Cart\xC3\xA3o de Cidad\xC3\xA3o 0009
 
-        # Montar filename com os digitos 
-        filename = 'EC_de_Autenticacao_do_Cartao_de_Cidadao_' + str(issuer[0][-4:]) + '.pem'
+        if mode == 'AUTHENTICATION':
+            # Montar filename com os digitos 
+            filename = 'EC_de_Autenticacao_do_Cartao_de_Cidadao_' + str(issuer[0][-4:]) + '.pem'
+
+        if mode == 'SIGNATURE':
+            filename = 'EC_de_Assinatura_Digital_Qualificada_do_Cartao_de_Cidadao_' + str(issuer[0][-4:]) + '.pem'
 
         with open(os.path.join(os.getcwd(), '_certs', filename), 'r') as myfile:
             subca_obj = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, myfile.read())
@@ -122,7 +126,7 @@ class citizencard():
             pass
 
     def retrieveStatus(self, cert, mode):     # mode AUTHENTICATION ou SIGNATURE
-        issuers = self.getAuthenticationIssuers(cert)    # tuplo
+        issuers = self.getAuthenticationIssuers(cert, mode)    # tuplo
         crls = []
         obj = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM,cert)
         crls.append(self.retrieveBase(obj, 5))          # crl do cert
@@ -205,7 +209,7 @@ class citizencard():
                                                     (PyKCS11.LowLevel.CKA_KEY_TYPE, PyKCS11.LowLevel.CKK_RSA)))[0]
             # Sha256
             mech = PyKCS11.Mechanism(PyKCS11.LowLevel.CKM_SHA256_RSA_PKCS, '')
-
+            
             # Sign
             sig = session.sign(key, data, mech)
 

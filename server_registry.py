@@ -223,6 +223,18 @@ class ServerRegistry:
                 if stored_pw == passphrase:
                     return True
         return False
+
+    def getUserCertificate(self, uuid, mode):
+        for k in self.users.keys():
+            if self.users[k].description['uuid'] == uuid:
+                if mode == 'AUTHENTICATION':
+                    cert = self.users[k].description['auth_certificate']
+                    return cert
+
+                if mode == 'SIGNATURE':
+                    cert = auth_cert = self.users[k].description['sign_certificate']
+                    return cert
+        return 
         
     def userAllMessages(self, uid):
         return self.userMessages(self.userMessageBox(uid), "_?[0-9]+_[0-9]+")

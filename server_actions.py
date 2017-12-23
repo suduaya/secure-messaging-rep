@@ -13,7 +13,10 @@ from Crypto.PublicKey import RSA
 from string import ascii_lowercase
 from Security_functions import Security
 from Crypto.Protocol.KDF import PBKDF1
+from citizencard import citizencard
 
+
+cc = citizencard()
 security = Security()
 
 HOST = ""   # All available interfaces
@@ -47,7 +50,7 @@ class ServerActions:
             'create': self.processCreate,
             'receipt': self.processReceipt,
             'status': self.processStatus,
-            'dh': self.processDH,
+            'dh': self.processAuthentication,
             'secure': self.processSecure,
             'refresh': self.processRefresh,
         }
@@ -199,7 +202,7 @@ class ServerActions:
         client.sendResult({"resultCreate": me.id})
 
 
-    def processDH(self, data, client):
+    def processAuthentication(self, data, client):
         log(logging.INFO, colors.INFO + " Authenticating" + colors.END)
         client.uuid = data['uuid']                      # username = uuid
         client.id = self.registry.getId(data['uuid'])   # uuid -> traducao para ID
@@ -209,6 +212,8 @@ class ServerActions:
         client.client_pubNum = int(data['Client_pubNum'])
         client.svPrivNum = privateNumber()
         passphrase = data['passphrase']
+        signed_passphrase = base64.b64decode(data['signed_passphrase'])
+        timestamp= str(int(time.time() * 1000))
 
         if not self.registry.userDirExists(client.uuid):
             log(logging.ERROR, colors.ERROR +"Invalid Username" + colors.END)
@@ -220,6 +225,18 @@ class ServerActions:
             log(logging.ERROR, colors.ERROR +"Authentication failed! Wrong passphrase!"+colors.END)
             client.sendResult({"error": "Wrong password!"})
             return
+        log(logging.DEBUG,colors.VALID + "Correct Passphrase" + colors.END)
+
+        user_cert = self.registry.getUserCertificate(uuid= client.uuid ,mode='AUTHENTICATION')
+        if user_cert != None:
+            if not cc.verify(cert=user_cert, data= base64.b64decode(passphrase), sign= signed_passphrase) and cc.signatureValidity(cert=user_cert, timestamp=timestamp):
+                log(logging.ERROR, colors.ERROR +"Invalid Signature!"+colors.END)
+                client.sendResult({"error": "Invalid Signature!"})
+                return
+            log(logging.DEBUG,colors.VALID + "Valid Signature" + colors.END)
+        log(logging.DEBUG,colors.VALID + "Challenge Validated" + colors.END)
+        
+
 
         # Compute Shared Key
         client.svPubNum = int(pow(client.primitive_root, client.svPrivNum, client.modulus_prime))
@@ -227,7 +244,7 @@ class ServerActions:
         client.sharedKey = new_sharedKey
 
         # connected
-        log(logging.DEBUG,colors.VALID + "User authenticated: " + colors.END+ client.uuid)
+        log(logging.DEBUG,colors.VALID + "User authenticated" + colors.END)
         
         client.sendResult({"resultDH":{
                                         "Server_pubNum" : client.svPubNum,
@@ -242,7 +259,8 @@ class ServerActions:
         
 
     def processList(self, data, client):
-        log(logging.DEBUG, "%s" % json.dumps(data))
+        #log(logging.DEBUG, "%s" % json.dumps(data))
+        log(logging.INFO, colors.INFO + " Listing Users" + colors.END)
 
         user = 0  # 0 means all users
         userStr = "all users"
