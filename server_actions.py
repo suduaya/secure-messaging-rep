@@ -203,59 +203,81 @@ class ServerActions:
 
 
     def processAuthentication(self, data, client):
-        log(logging.INFO, colors.INFO + " Authenticating" + colors.END)
-        client.uuid = data['uuid']                      # username = uuid
-        client.id = self.registry.getId(data['uuid'])   # uuid -> traducao para ID
         phase = int(data['phase'])
-        client.modulus_prime = data['modulus_prime']
-        client.primitive_root = data['primitive_root']
-        client.client_pubNum = int(data['Client_pubNum'])
-        client.svPrivNum = privateNumber()
-        passphrase = data['passphrase']
-        signed_passphrase = base64.b64decode(data['signed_passphrase'])
-        timestamp= str(int(time.time() * 1000))
 
-        if not self.registry.userDirExists(client.uuid):
-            log(logging.ERROR, colors.ERROR +"Invalid Username" + colors.END)
-            client.sendResult({"error": "Invalid Username!"})
-            return
+        if phase == 1:
+            log(logging.INFO, colors.INFO + " Authenticating Credentials" + colors.END)
+            client.uuid = data['uuid']                      # username = uuid
+            client.id = self.registry.getId(data['uuid'])   # uuid -> traducao para ID
+            client.modulus_prime = data['modulus_prime']
+            client.primitive_root = data['primitive_root']
+            client.client_pubNum = int(data['Client_pubNum'])
+            client.svPrivNum = privateNumber()
+            passphrase = data['passphrase']
+            
 
-        # check password and signature validity
-        if not self.registry.checkPassphrase(client.uuid, passphrase):
-            log(logging.ERROR, colors.ERROR +"Authentication failed! Wrong passphrase!"+colors.END)
-            client.sendResult({"error": "Wrong password!"})
-            return
-        log(logging.DEBUG,colors.VALID + "Correct Passphrase" + colors.END)
-
-        user_cert = self.registry.getUserCertificate(uuid= client.uuid ,mode='AUTHENTICATION')
-        if user_cert != None:
-            if not cc.verify(cert=user_cert, data= base64.b64decode(passphrase), sign= signed_passphrase) and cc.signatureValidity(cert=user_cert, timestamp=timestamp):
-                log(logging.ERROR, colors.ERROR +"Invalid Signature!"+colors.END)
-                client.sendResult({"error": "Invalid Signature!"})
+            if not self.registry.userDirExists(client.uuid):
+                log(logging.ERROR, colors.ERROR +"Invalid Username" + colors.END)
+                client.sendResult({"error": "Invalid Username!"})
                 return
-            log(logging.DEBUG,colors.VALID + "Valid Signature" + colors.END)
-        log(logging.DEBUG,colors.VALID + "Challenge Validated" + colors.END)
-        
 
+            # check password
+            if not self.registry.checkPassphrase(client.uuid, passphrase):
+                log(logging.ERROR, colors.ERROR +"Authentication failed! Wrong passphrase!"+colors.END)
+                client.sendResult({"error": "Wrong password!"})
+                return
+            log(logging.DEBUG,colors.VALID + "Correct Passphrase" + colors.END)
+            
+            # Compute Shared Key
+            client.svPubNum = int(pow(client.primitive_root, client.svPrivNum, client.modulus_prime))
+            
+            client.sendResult({"resultDH":{
+                                            "Server_pubNum" : client.svPubNum,
+                                            "phase" : phase+1
+                                        },
+                                "server_pubkey" : self.pubKey,
+                                "id": client.id,
+                                "name": self.registry.users[client.id].description["name"]
+                            })
 
-        # Compute Shared Key
-        client.svPubNum = int(pow(client.primitive_root, client.svPrivNum, client.modulus_prime))
-        new_sharedKey = int(pow(client.client_pubNum, client.svPrivNum, client.modulus_prime))
-        client.sharedKey = new_sharedKey
+        if phase == 3:
+            log(logging.INFO, colors.INFO + " Authenticating Challenge" + colors.END)
+            signed_passphrase = base64.b64decode(data['signed_passphrase'])
 
-        # connected
-        log(logging.DEBUG,colors.VALID + "User authenticated" + colors.END)
-        
-        client.sendResult({"resultDH":{
-                                        "Server_pubNum" : client.svPubNum,
-                                        "phase" : phase+1
-                                    },
-                            "server_pubkey" : self.pubKey,
-                            "id": client.id,
-                            "name": self.registry.users[client.id].description["name"]
-                        })
-        # Change Client Status
-        client.status = CONNECTED
+            passphrase = data['passphrase']
+
+            # double check password 
+            if not self.registry.checkPassphrase(client.uuid, passphrase):
+                log(logging.ERROR, colors.ERROR +"Authentication failed! Wrong passphrase!"+colors.END)
+                client.sendResult({"error": "Wrong password!"})
+                return
+
+            # signature validity
+            timestamp= str(int(time.time() * 1000))
+            user_cert = self.registry.getUserCertificate(uuid= client.uuid ,mode='AUTHENTICATION')
+            if user_cert != None:
+                if not cc.verify(cert=user_cert, data= base64.b64decode(passphrase), sign= signed_passphrase) and cc.signatureValidity(cert=user_cert, timestamp=timestamp):
+                    log(logging.ERROR, colors.ERROR +"Invalid Signature!"+colors.END)
+                    client.sendResult({"error": "Invalid Signature!"})
+                    return
+                log(logging.DEBUG,colors.VALID + "Valid Signature" + colors.END)
+            log(logging.DEBUG,colors.VALID + "Challenge Validated" + colors.END)
+
+            # shared key
+            new_sharedKey = int(pow(client.client_pubNum, client.svPrivNum, client.modulus_prime))
+            client.sharedKey = new_sharedKey
+            log(logging.DEBUG,colors.INFO + "Session Estabilished" + colors.END)
+
+            # connected
+            log(logging.DEBUG,colors.INFO + "User authenticated" + colors.END)
+
+            client.sendResult({"resultDH":{
+                                            "phase" : phase+1
+                                        }
+                            })
+
+            # Change Client Status
+            client.status = CONNECTED
         
 
     def processList(self, data, client):

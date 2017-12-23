@@ -432,31 +432,61 @@ class Client:
 
                 return
 
-            if 'resultDH' in req:     
-                # conexao com o servidor, calcular shared/session key para estabelecer nova sessao
-                self.serverPubNum = int(req['resultDH']['Server_pubNum'])
-                self.serverPubKey = req['server_pubkey']
-                self.sharedKey = int(pow(self.serverPubNum,self.privNum, self.modulus_prime))
-
-                # load keys and data registered on server(id, name), passphrase is checked
-                if self.loadKeys(timestamp= str(int(time.time() * 1000))):
+            if 'resultDH' in req:
+                phase = int(req['resultDH']['phase'])
+                if phase == 2: 
+                    # conexao com o servidor, calcular shared/session key para estabelecer nova sessao
                     self.id = req['id']
                     self.name = req['name']
+                    self.serverPubNum = int(req['resultDH']['Server_pubNum'])
+                    self.serverPubKey = req['server_pubkey']
+                    self.sharedKey = int(pow(self.serverPubNum,self.privNum, self.modulus_prime))
+                    passphrase = security.SHA256(self.passphrase)
 
-                    # state changed to connected
-                    self.state = CONNECTED
-                    print colors.INFO+"                Sucessfully Connected!"+colors.END
+                    # Verificar estado do certificado
+                    self.auth_certificate, self.session = cc.certificate(mode="AUTHENTICATION")
 
-                    # synchronizing users details
-                    self.listUserMsgBox()
-                    time.sleep(1)
-                    os.system('clear')
-                    self.show_menu() 
-                else:
-                    # connection ERROR, session failed
-                    # passphrase errada probably (loadKeys), double check servidor-cliente
-                    self.state = NOT_CONNECTED
-                    print colors.ERROR+"                Connection Denied!"+colors.END  
+                    # Marcar tempo de leitura
+                    timestamp = str(int(time.time() * 1000))
+
+                    # Verificar estado do cc
+                    if not cc.retrieveStatus(cert= self.auth_certificate, mode="AUTHENTICATION"):
+                        print "Your Certificate is revoked! Sorry, aborting ..."
+                        return
+
+                    # Verificar validade da assinatura
+                    if not cc.signatureValidity(cert=self.auth_certificate, timestamp=timestamp):
+                        print "Your Signature isn't valid!"
+                        return
+
+                    # Assinar
+                    signed_passphrase, cleartext = cc.sign(data=passphrase, session=self.session, mode="AUTHENTICATION")
+
+                    data = {
+                            "type" : "dh",
+                            "phase" : int(phase)+1,
+                            "passphrase" : base64.b64encode(passphrase),
+                            "signed_passphrase" : base64.b64encode(signed_passphrase),
+                    }
+                    self.send(data)
+
+                if phase == 4:
+                    # load keys and data registered on server(id, name), passphrase is checked
+                    if self.loadKeys(timestamp= str(int(time.time() * 1000))):
+                        # state changed to connected
+                        self.state = CONNECTED
+                        print colors.INFO+"                Sucessfully Connected!"+colors.END
+
+                        # synchronizing users details
+                        self.listUserMsgBox()
+                        time.sleep(1)
+                        os.system('clear')
+                        self.show_menu() 
+                    else:
+                        # connection ERROR, session failed
+                        # passphrase errada probably (loadKeys), double check servidor-cliente
+                        self.state = NOT_CONNECTED
+                        print colors.ERROR+"                Connection Denied!"+colors.END  
 
                 return
 
@@ -744,31 +774,11 @@ class Client:
         self.pubNum =  get_pubNum(self.primitive_root, self.privNum, self.modulus_prime)
         passphrase = security.SHA256(self.passphrase)
 
-        # Verificar estado do certificado
-        self.auth_certificate, self.session = cc.certificate(mode="AUTHENTICATION")
-
-        # Marcar tempo de leitura
-        timestamp = str(int(time.time() * 1000))
-
-        # Verificar estado do cc
-        if not cc.retrieveStatus(cert= self.auth_certificate, mode="AUTHENTICATION"):
-            print "Your Certificate is revoked! Sorry, aborting ..."
-            return
-
-        # Verificar validade da assinatura
-        if not cc.signatureValidity(cert=self.auth_certificate, timestamp=timestamp):
-            print "Your Signature isn't valid!"
-            return
-
-        # Assinar
-        signed_passphrase, cleartext = cc.sign(data=passphrase, session=self.session, mode="AUTHENTICATION")
-
         data = {
                 "type" : "dh",
                 "phase": int(phase),
                 "uuid"   : self.uuid,
                 "passphrase": base64.b64encode(passphrase),
-                "signed_passphrase" : base64.b64encode(signed_passphrase),
                 "primitive_root" : self.primitive_root,
                 "modulus_prime"  : self.modulus_prime,
                 "Client_pubNum"  : int(self.pubNum),
@@ -936,7 +946,7 @@ class Client:
             # Secure Messages with Session Key
             if dict_['type'] == 'list' or dict_['type'] == 'send' \
                 or dict_['type'] == 'getMyId' or dict_['type'] == 'all' or dict_['type'] == 'new' \
-                or dict_['type'] == 'recv' or dict_['type'] == 'dh' or dict_['type'] == 'status' \
+                or dict_['type'] == 'recv' or dict_['type'] == 'status' \
                 or dict_['type'] == 'receipt' or dict_['type'] == 'refresh':
                 try:
                     # Pronto para encapsular
