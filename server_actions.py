@@ -114,12 +114,12 @@ class ServerActions:
     def processRefresh(self, data, client):
         log(logging.INFO, colors.INFO + " Refreshing Keys" + colors.END)
         client_pubkey = data['publickey']
-        client.client_pubKey = client_pubkey
         client.modulus_prime = data['modulus_prime']
         client.primitive_root = data['primitive_root']
         client.client_pubNum = int(data['Client_pubNum'])
         client.svPrivNum = privateNumber()
 
+        # update pubkey
         if not self.registry.updatePublicKey(client.uuid, client_pubkey):
             log(logging.INFO, colors.ERROR + "Error while trying to update Public Key" + colors.END)
             return
@@ -291,7 +291,7 @@ class ServerActions:
         client.sendResult({"resultAll": [self.registry.userAllMessages(user), self.registry.userSentMessages(user)]})
 
     def processSend(self, data, client):
-        log(logging.DEBUG, "%s" % json.dumps(data))
+        #log(logging.DEBUG, "%s" % json.dumps(data))
         log(logging.INFO, colors.INFO + "Sending Message" + colors.END)
 
         if not set(data.keys()).issuperset(set({'src', 'dst', 'msg', 'msg'})):
@@ -319,6 +319,7 @@ class ServerActions:
 
         # Save message and copy
         response = self.registry.sendMessage(srcId, dstId, msg, copy)
+        log(logging.INFO, colors.VALID + "Message Sent" + colors.END)
         client.sendResult({"resultSend": response})
 
     def processRecv(self, data, client):

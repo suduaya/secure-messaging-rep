@@ -63,7 +63,7 @@ class ServerRegistry:
                 self.users[uid] = UserDescription(uid, description)
 
     def saveOnFile(self, path, data):
-        with open(path, "w") as f:
+        with open(path, "w+") as f:
             f.write(data)
 
     def readFromFile(self, path):
@@ -131,6 +131,25 @@ class ServerRegistry:
 
         return user
 
+    def updateUser(self, idd, description):
+        if 'type' in description.keys():
+            del description['type']
+
+        user = UserDescription(idd, description)
+        self.users[idd] = user
+
+        path = ""
+        try:
+            path = os.path.join(MBOXES_PATH, str(idd), DESC_FILENAME)
+            log(logging.DEBUG, "update user description " + path)
+            self.saveOnFile(path, json.dumps(description))
+            return True
+        except:
+            logging.exception("Cannot update description file " + path)
+            return False
+
+        return False
+
     def listUsers(self, uid):
         if uid == 0:
             log(logging.DEBUG, "Looking for all connected users")
@@ -189,7 +208,11 @@ class ServerRegistry:
     def updatePublicKey(self, uuid, publicKey):
         for k in self.users.keys():
             if self.users[k].description["uuid"] == uuid:
-                self.users[k].description["Client_pubKey"] == publicKey
+                description = self.users[k].description
+                # changing
+                description["Client_pubKey"] = publicKey
+                userid = k
+                self.updateUser(k, description)
                 return True
         return False
 

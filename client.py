@@ -1,21 +1,10 @@
-import select, socket, sys
-import json
-import sys
-import getpass
-import ast
-import time, base64
-import random
-import logging, socket, datetime
-import os
+import select, socket, sys, json, getpass, time, base64, os, time, logging
 from os import listdir
 from os.path import isfile, join
 from Crypto.Hash import SHA512, HMAC, SHA256
 from Crypto.Random import random
 from Crypto.PublicKey import RSA
-from string import ascii_lowercase
 from Security_functions import Security
-from Crypto.Protocol.KDF import PBKDF1
-import time
 from citizencard import citizencard
 
 security = Security()    # security functions
@@ -169,7 +158,11 @@ class Client:
         return False
 
     def saveKeys(self):
+        print "old"
+        print self.pubKey
         self.pubKey, self.privKey = security.get_keys(self.passphrase)
+        print "new"
+        print self.pubKey
         try:
             os.mkdir(self.myDirPath)
             print colors.INFO+ "User Dir(keys) created!"+ colors.END
@@ -186,7 +179,8 @@ class Client:
 
         with open(path, "wb") as f:
             f.write(data)
-        return
+            return True
+        return False
 
     def checkUser(self, user):
         for x in self.Users:
@@ -292,6 +286,7 @@ class Client:
                 return
 
             if 'error' in req:
+                # error enviado pelo servidor
                 print colors.ERROR+req['error']+colors.END
                 self.stop()
 
@@ -310,6 +305,7 @@ class Client:
                 return
 
             if 'resultAll' in req:
+                # Parsing e organizacao da MessageBox
                 i=0
                 os.system('clear')
 
@@ -329,6 +325,7 @@ class Client:
                 # ordered mail, new messages first
                 self.mailBox = self.newMails + self.inbox   
 
+                ############################################ GUID ############################################
                 print colors.VALID + colors.BOLD + "            Mensagens (Inbox/Outbox): \n" + colors.END
                 print colors.WARNING + str(len(self.mailBox)) + " Received Messages: " + colors.END
                 if len(self.mailBox) == 0:
@@ -360,8 +357,9 @@ class Client:
                 print colors.WARNING +"        (/status <msg_number>)" + colors.END + "  Check Receipt Status"
                 print colors.WARNING +"        (<)                   " + colors.END + "  Main Menu"
                 print "    ------------------------------------------------"
+                ##############################################################################################
 
-                # inbox, outbox
+                # inbox, outbox, sync
                 self.mail = dict(zip(range(1,len(self.mailBox)+1), self.mailBox))
                 self.outmail = dict(zip(range(1,len(self.outbox)+1), self.outbox))
 
@@ -375,8 +373,9 @@ class Client:
                 # parsing arguments to decipher message content, real text
                 messageCiphered2 = base64.b64decode(msg['messageCiphered2'])
                 symKeyCiphered2 = base64.b64decode(msg['symKeyCiphered2'])
+                timestamp_mine = base64.b64decode(msg['timestamp'])
 
-                # parse signed receipt
+                # parse signed receipt, se existir, ou seja, se ja foi lida a mensagem em principio
                 try:
                     receiptDict =  json.loads(req['resultStatus']['receipts'][0]['receipt'])
                     receiptSigned = base64.b64decode(receiptDict['receiptSigned'])
@@ -387,45 +386,58 @@ class Client:
                     source_cert = self.getCert(username=source_rec)
                     # timestamp
                     timestamp = req['resultStatus']['receipts'][0]['date']
+                    msg = self.hybrid(operation='decipher', data=str(messageCiphered2), data_key=str(symKeyCiphered2), timestamp=str(timestamp))
                 except:
                     pass
+                    # decipher msg
+                
+                msg = self.hybrid(operation='decipher', data=str(messageCiphered2), data_key=str(symKeyCiphered2), timestamp = str(timestamp_mine))
+                    
                 
                 #sent to..
                 source = self.getUUID(req['id'][0])
 
-                # decipher msg
-                msg = self.hybrid(operation='decipher', data=str(messageCiphered2), data_key=str(symKeyCiphered2), timestamp=str(timestamp))
+               
 
+
+                ############################################ GUID ############################################
                 print colors.TITLE + colors.BOLD + "                 Receipt Status " + colors.END
                 if req['resultStatus']['receipts'] != []: # mensagem lida
+                    # messagem foi lida
                     print colors.VALID + colors.BOLD + "Sent to: " + colors.END + str(source)
                     print colors.WARNING + colors.BOLD + "Your Message: " + colors.END
                     print str(msg)
                     print "\n" 
+                    # Verificar assinatura/certificado, e validade da assinatura
                     if cc.verify(cert=source_cert, data= message, sign= receiptSigned) and cc.signatureValidity(cert=source_cert, timestamp=timestamp):
+                        # validated
                         print colors.VALID + colors.BOLD + "Signed and Verified! (Read at "+ str(time.ctime(int(timestamp) / 1000)) +")\n" + colors.END
                         print colors.WARNING + colors.BOLD + "Signature: " +colors.END
                         print str(receiptCleartext)
                         print "\n"
                     else:
+                        # not validated
                         print colors.ERROR + colors.BOLD + "Unreliable Message! (Forging attempt at "+ str(time.ctime(int(timestamp) / 1000)) +")\n" + colors.END
                 else:
+                    # mensagem ainda nao foi lida
                     print colors.VALID + colors.BOLD + "Sent to: " + colors.END + str(source)
                     print colors.WARNING + colors.BOLD + "Your Message: " + colors.END
                     print str(msg)
                     print "\n" 
                     print colors.WARNING + colors.ERROR + "The message has not been read yet! " +colors.END
+                # commands
                 print "\n"
                 print "    ------------------------------------------------"
                 print colors.TITLE + colors.BOLD + "     Commands: " + colors.END
                 print colors.WARNING +"        (/all)    " + colors.END + "Return to Message Box"
                 print colors.WARNING +"        (<)       " + colors.END + "Main Menu"
                 print "    ------------------------------------------------"
+                ##############################################################################################
 
                 return
 
             if 'resultDH' in req:     
-                # connect to server, calculate shared/session key
+                # conexao com o servidor, calcular shared/session key para estabelecer nova sessao
                 self.serverPubNum = int(req['resultDH']['Server_pubNum'])
                 self.serverPubKey = req['server_pubkey']
                 self.sharedKey = int(pow(self.serverPubNum,self.privNum, self.modulus_prime))
@@ -445,7 +457,8 @@ class Client:
                     os.system('clear')
                     self.show_menu() 
                 else:
-                    # connection ERRORed
+                    # connection ERROR, session failed
+                    # passphrase errada probably (loadKeys), double check servidor-cliente
                     self.state = NOT_CONNECTED
                     print colors.ERROR+"Connection Denied!"+colors.END  
                 return
@@ -456,12 +469,14 @@ class Client:
                 msg = req['resultRecv'][1]
                 msg = json.loads(msg)
 
-                # parsing arguments to decipher
+                # Parsing dos args para decifrar mensagem
+                # hybrid
                 messageCiphered = base64.b64decode(msg['messageCiphered'])
                 symKeyCiphered = base64.b64decode(msg['symKeyCiphered'])
+                # timestamp
                 sent_timestamp = base64.b64decode(msg['timestamp'])
+                # signature
                 signature_dict = json.loads(base64.b64decode(msg['signature']))
-
                 signature = base64.b64decode(signature_dict['signature'])
                 sign_cleartext = base64.b64decode(signature_dict['cleartext'])
 
@@ -472,15 +487,18 @@ class Client:
                 source = self.getUUID(str(source))
                 source_cert = self.getCert(username=source)
 
+                # id mensagem
                 msg_nr = str(req['resultRecv'][2])
                 dict_id = self.getKeyByValue(msg_nr)  # indicates message in self.mail
 
+                ############################################ GUID ############################################
 
                 print colors.TITLE + colors.BOLD + "                    Message "+ msg_nr[-1] + colors.END
                 print colors.VALID + colors.BOLD + "Source: " + colors.END + str(source)
                 print colors.WARNING + colors.BOLD + "Message: " +colors.END
                 print msg
                 print "\n"
+                # Verificar assinatura com o certificado da source e validade da assinatura
                 if cc.verify(cert=source_cert, data= messageCiphered, sign= signature) and cc.signatureValidity(cert=source_cert, timestamp=sent_timestamp):
                     print colors.VALID + colors.BOLD + "Signed and Verified!\n" + colors.END
                 else:
@@ -493,26 +511,37 @@ class Client:
                 print colors.WARNING +"        (<)       " + colors.END + "      Main Menu"
                 print "    ------------------------------------------------"
 
+                ##############################################################################################
+
                
                 if self.to_receipt:        # mandar receipt se for primeira leitura
                     # Verificar estado do certificado
                     self.auth_certificate, self.session = cc.certificate(mode="AUTHENTICATION")
+
+                    # Marcar tempo de leitura
                     timestamp = str(int(time.time() * 1000))
+
+                    # Verificar estado do cc
                     if not cc.retrieveStatus(cert= self.auth_certificate, mode="AUTHENTICATION"):
                         print "Your Certificate is revoked! Sorry, aborting ..."
                         return
-                    
+
+                    # Verificar validade da assinatura
                     if not cc.signatureValidity(cert=self.auth_certificate, timestamp=timestamp):
                         print "Your Signature isn't valid!"
                         return
-                    # assinar
+
+                    # Assinar
                     signature, cleartext = cc.sign(data=msg, session=self.session, mode="AUTHENTICATION")
 
+                    # receipt composto por assinatura, assinatura.toChar, mensagem real (nao necessario)
                     receipt = json.dumps({
                             "receiptSigned": base64.b64encode(signature),
                             "receiptCleartext": base64.b64encode(cleartext),
                             "message" : base64.b64encode(msg),
-                    })      
+                    })
+
+                    # Envio do receipt
                     self.receipt(int(dict_id), receipt)
 
                 return               
@@ -539,11 +568,14 @@ class Client:
                 self.Users = arrayAux
                 self.sync = False
 
-                self.refreshKeys()
+                #self.refreshKeys()
                 return
 
             if 'resultCreate' in req:
+                # Conta criada com sucesso
+                # guardar id da messagebox
                 self.id =  req['resultCreate']
+
                 print colors.VALID + "You may connect now! (/connect)" + colors.END
                 return
 
@@ -583,6 +615,11 @@ class Client:
         if fields[0] == '/recv':
             self.recvMessage(int(fields[1]))
             return
+
+        if fields[0] == 'r':
+            self.refreshKeys()
+            return
+
         if fields[0] == '<':
             os.system('clear')
             self.show_menu()
@@ -677,25 +714,25 @@ class Client:
     ################################################################################ Client Messages ################################################################################
     def refreshKeys(self):
         #save old key pair and generates new one
-        self.saveKeys()
-        # nova session key
-        #self.startDH(1)
-        #self.loadKeys(timestamp = str(int(time.time() * 1000)))
-        self.primitive_root = PRIMITIVE_ROOT
-        self.modulus_prime = MODULUS_PRIME
-        self.privNum = privateNumber()
-        self.pubNum =  get_pubNum(self.primitive_root, self.privNum, self.modulus_prime)
-        data = {
-                "type" : "dh",
-                "type" : "refresh",
-                "publickey" : self.pubKey,
-                "primitive_root" : self.primitive_root,
-                "modulus_prime"  : self.modulus_prime,
-                "Client_pubNum"  : int(self.pubNum),
-        }
-        print colors.INFO + "Refreshing Keys..." + colors.END
+        if self.saveKeys():
+            self.loadKeys(timestamp= str(int(time.time() * 1000)))
 
-        self.send(data)
+            # nova sessao
+            self.primitive_root = PRIMITIVE_ROOT
+            self.modulus_prime = MODULUS_PRIME
+            self.privNum = privateNumber()
+            self.pubNum =  get_pubNum(self.primitive_root, self.privNum, self.modulus_prime)
+
+            data = {
+                    "type" : "dh",
+                    "type" : "refresh",
+                    "publickey" : self.pubKey,
+                    "primitive_root" : self.primitive_root,
+                    "modulus_prime"  : self.modulus_prime,
+                    "Client_pubNum"  : int(self.pubNum),
+            }
+            print colors.INFO + "Refreshing Keys..." + colors.END
+            self.send(data)
 
     #Start DiffieHelman key exchange
     def startDH(self, phase):
