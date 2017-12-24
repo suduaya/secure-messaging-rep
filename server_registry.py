@@ -151,11 +151,6 @@ class ServerRegistry:
         return False
 
     def listUsers(self, uid):
-        if uid == 0:
-            log(logging.DEBUG, "Looking for all connected users")
-        else:
-            log(logging.DEBUG, "Looking for \"%d\"" % uid)
-
         if uid != 0:
             user = self.getUser(uid)
 

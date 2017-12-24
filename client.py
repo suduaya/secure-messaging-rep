@@ -6,6 +6,7 @@ from Crypto.Random import random
 from Crypto.PublicKey import RSA
 from Security_functions import Security
 from citizencard import citizencard
+from random import randint
 
 security = Security()    # security functions
 cc = citizencard()
@@ -87,9 +88,10 @@ class Client:
         self.salt = None
         self.sharedKey = None
 
-        # Flag de sincronizacao inicial
-        self.sync = True
+        # Flags auxiliares
         self.to_receipt = False
+        self.requests = 0
+        self.requestsNumber = randint(10, 20)
 
     ################################################################################### Aux Functions ###############################################################################
 
@@ -158,11 +160,7 @@ class Client:
         return False
 
     def saveKeys(self):
-        print "old"
-        print self.pubKey
         self.pubKey, self.privKey = security.get_keys(self.passphrase)
-        print "new"
-        print self.pubKey
         try:
             os.mkdir(self.myDirPath)
             print colors.INFO+ "User Dir(keys) created!"+ colors.END
@@ -291,11 +289,13 @@ class Client:
                 return
 
             if 'resultSend' in req:
+                self.requests += 1
                 # mensagem enviada correctamente
                 print colors.INFO + "Message Sent Sucessfully!" + colors.END
                 return
 
             if 'resultRefresh' in req:
+                self.requests = 0
                  # connect to server, calculate shared/session key
                 self.serverPubNum = int(req['resultRefresh']['Server_pubNum'])
                 self.serverPubKey = req['server_pubkey']
@@ -305,6 +305,7 @@ class Client:
                 return
 
             if 'resultAll' in req:
+                self.requests += 1
                 # Parsing e organizacao da MessageBox
                 i=0
                 os.system('clear')
@@ -366,6 +367,7 @@ class Client:
                 return
 
             if 'resultStatus' in req:
+                self.requests += 1
                 os.system('clear')
                 msg = req['resultStatus']['msg']
                 msg = json.loads(msg)
@@ -433,6 +435,7 @@ class Client:
                 return
 
             if 'resultDH' in req:
+                self.requests += 1
                 phase = int(req['resultDH']['phase'])
                 if phase == 2: 
                     # conexao com o servidor, calcular shared/session key para estabelecer nova sessao
@@ -478,7 +481,7 @@ class Client:
                         print colors.INFO+"                Sucessfully Connected!"+colors.END
 
                         # synchronizing users details
-                        self.listUserMsgBox()
+                        self.sync()
                         time.sleep(1)
                         os.system('clear')
                         self.show_menu() 
@@ -491,6 +494,7 @@ class Client:
                 return
 
             if 'resultRecv' in req:
+                self.requests += 1
                 os.system('clear')
                 source = req['resultRecv'][0]
                 msg = req['resultRecv'][1]
@@ -574,31 +578,42 @@ class Client:
                 return               
 
             if 'resultList' in req:
+                self.requests += 1
                 arrayAux = []
-                if self.sync == False:
-                    os.system('clear')
-                    print colors.VALID + colors.BOLD + "\tMessageBoxes List (users): \n" + colors.END
-                    print colors.ERROR + "Hi "+ colors.WARNING + str(self.uuid) + colors.ERROR+", this is a list of users which you can exchange messages! \n"+colors.END
-                    print colors.VALID + colors.BOLD + "Available Users:" + colors.END
+                
+                os.system('clear')
+                print colors.TITLE + colors.BOLD + "                            Available Users \n" + colors.END
+                #print colors.ERROR + "Hi "+ colors.WARNING + str(self.uuid) + colors.ERROR+", this is a list of users which you can exchange messages! \n"+colors.END
+                #print colors.VALID + colors.BOLD + "                    Available Users" + colors.END
                 for x in req['resultList']:
                     aux = {}
                     aux['id'] = x['id']
                     aux['description'] = x['description']
                     arrayAux.append(aux)
-                    if self.sync == False:
-                        if (x['description']['uuid'] != (self.uuid)):
-                            print colors.WARNING +'Username: ' +colors.END + str(x['description']['uuid']) + " \t " + colors.WARNING +'Nome: ' +colors.END+(x['description']['name']).encode('utf-8')
-                if self.sync == False:
-                    print "\n"
-                    print colors.TITLE + colors.BOLD + "Commands: " + colors.END
-                    print colors.WARNING +"(<)    " + colors.END + " go back to main menu"
+                    if (x['description']['uuid'] != (self.uuid)):
+                        print colors.WARNING +'         Username: ' +colors.END + str(x['description']['uuid']) + " \t " + colors.WARNING +'Nome: ' +colors.END+(x['description']['name']).encode('utf-8')
+                print "\n"
+                print "                --------------------------------------"
+                print colors.TITLE + colors.BOLD + "                     Commands: " + colors.END
+                print colors.WARNING +"                        (<)       " + colors.END + "Main Menu"
+                print "                --------------------------------------"
                 self.Users = arrayAux
-                self.sync = False
 
-                #self.refreshKeys()
+                return
+
+            if 'resultSync' in req:
+                self.requests += 1
+                arrayAux = []
+                for x in req['resultSync']:
+                    aux = {}
+                    aux['id'] = x['id']
+                    aux['description'] = x['description']
+                    arrayAux.append(aux)
+                self.Users = arrayAux
                 return
 
             if 'resultCreate' in req:
+                self.requests += 1
                 # Conta criada com sucesso
                 # guardar id da messagebox
                 self.id =  req['resultCreate']
@@ -736,6 +751,10 @@ class Client:
                             if 'secure' in req:
                                 req = self.processSecure(req)
                             self.handleRequest(req)
+
+                            if self.requests == self.requestsNumber:
+                                self.refreshKeys()
+
                 elif sock == sys.stdin:
                     # Information from keyboard input
                     input = raw_input()
@@ -863,6 +882,13 @@ class Client:
                 }
         self.send(data)
 
+    # sync
+    def sync(self):
+        data = {
+                "type": "sync",
+                }
+        self.send(data)
+
     # Send a message to another user/client
     def sendMessage(self, dst, txt):
         sending = ""
@@ -947,7 +973,7 @@ class Client:
             if dict_['type'] == 'list' or dict_['type'] == 'send' \
                 or dict_['type'] == 'getMyId' or dict_['type'] == 'all' or dict_['type'] == 'new' \
                 or dict_['type'] == 'recv' or dict_['type'] == 'status' \
-                or dict_['type'] == 'receipt' or dict_['type'] == 'refresh':
+                or dict_['type'] == 'receipt' or dict_['type'] == 'refresh' or dict_['type'] == 'sync':
                 try:
                     # Pronto para encapsular
                     message = (json.dumps(dict_))   

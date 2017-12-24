@@ -53,6 +53,7 @@ class ServerActions:
             'dh': self.processAuthentication,
             'secure': self.processSecure,
             'refresh': self.processRefresh,
+            'sync': self.processSync,
         }
         # Registry
         self.registry = ServerRegistry()
@@ -60,7 +61,7 @@ class ServerActions:
         # Par de Chaves Assimetricas
         self.pubKey, self.privKey = security.get_keys()
 
-    def hybrid(self, operation, data, data_key=None):
+    '''def hybrid(self, operation, data, data_key=None):
         """
         Function used to cipher/decipher requests, generates symetric 
         key and ciphers with pubKey of dst or deciphers with my privKey
@@ -80,7 +81,7 @@ class ServerActions:
             b = security.rsaDecipher(message=data_key, key=instance)
             a = security.D_AES(symKey=b, message=data)
             
-            return a
+            return a'''
 
     def handleRequest(self, s, request, client):
         """Handle a request from a client socket.
@@ -290,11 +291,26 @@ class ServerActions:
             user = int(data['id'])
             userStr = "user%d" % user
 
-        log(logging.DEBUG,colors.INFO + "List %s" % userStr + colors.END)
+        log(logging.DEBUG,colors.INFO + "Looking for all connected users" + colors.END)
 
         userList = self.registry.listUsers(user)
 
         client.sendResult({"resultList": userList})
+
+
+    def processSync(self, data, client):
+        #log(logging.DEBUG, "%s" % json.dumps(data))
+        log(logging.INFO, colors.INFO + " Synchronizing User's related data" + colors.END)
+
+        user = 0  # 0 means all users
+        userStr = "all users"
+        if 'id' in data.keys():
+            user = int(data['id'])
+            userStr = "user%d" % user
+
+        userList = self.registry.listUsers(user)
+
+        client.sendResult({"resultSync": userList})
 
     def processNew(self, data, client):
         log(logging.DEBUG, "%s" % json.dumps(data))
