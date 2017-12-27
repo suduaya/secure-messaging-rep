@@ -284,9 +284,8 @@ class Client:
             self.pubNum =  pubNum(self.primitive_root, self.privNum, self.modulus_prime)
 
             data = {
-                    "type" : "dh",
                     "type" : "refresh",
-                    "publickey" : self.pubKey,
+                    "publickey" : base64.b64encode(self.pubKey),
                     "primitive_root" : self.primitive_root,
                     "modulus_prime"  : self.modulus_prime,
                     "Client_pubNum"  : int(self.pubNum),
@@ -306,7 +305,7 @@ class Client:
         data = {
                 "type" : "dh",
                 "phase": int(phase),
-                "uuid"   : self.uuid,
+                "uuid"   : base64.b64encode(self.uuid),
                 "passphrase": base64.b64encode(passphrase),
                 "primitive_root" : self.primitive_root,
                 "modulus_prime"  : self.modulus_prime,
@@ -323,8 +322,8 @@ class Client:
             return
         data = {
                 "type" : "status",
-                "id"   : self.uuid,
-                "msg"  : msgid,
+                "id"   : base64.b64encode(self.uuid),
+                "msg"  : base64.b64encode(msgid),
         }
         self.send(data)
 
@@ -332,8 +331,8 @@ class Client:
     def receipt(self, msgNr, receipt):
         data = {
                 "type" : "receipt",
-                "id"   : self.uuid,
-                "msg"  : self.mail[int(msgNr)],
+                "id"   : base64.b64encode(self.uuid),
+                "msg"  : base64.b64encode(self.mail[int(msgNr)]),
                 "receipt": receipt,
         }
         #print colors.INFO + "Receipt Sent Sucessfully!" + colors.END
@@ -381,8 +380,8 @@ class Client:
 
         data = {
                 "type": "recv",
-                "uuid"  : self.uuid,
-                "msg" : msgid,
+                "uuid"  : base64.b64encode(self.uuid),
+                "msg" : base64.b64encode(msgid),
                 }
         self.send(data)
 

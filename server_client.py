@@ -3,10 +3,10 @@ import json, base64, sys, random, logging
 from Crypto.Hash import SHA512, HMAC
 from Crypto.Random import random
 from Crypto.PublicKey import RSA
-from Security_functions import Security
+from secure import Secure
 from Crypto.Protocol.KDF import PBKDF1
 
-security = Security()   # security module
+secure = Secure()   # secure module
 
 
 # Connection status
@@ -79,10 +79,10 @@ class Client:
 
         log(logging.INFO, colors.INFO + " Secure Response" + colors.END)
         # Derivated from Session Key
-        kdf_key = security.kdf(str(self.sharedKey), self.salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
+        kdf_key = secure.kdf(str(self.sharedKey), self.salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
 
         # Ciphering message
-        ciphered =  security.AES(message, kdf_key)
+        ciphered =  secure.AES(message, kdf_key)
 
         # Encoding ciphered message
         ciphered_b = base64.b64encode(ciphered)
@@ -90,13 +90,13 @@ class Client:
         # Generate HMAC (message, derivated Key)
         HMAC_msg = base64.b64encode((HMAC.new(key=kdf_key, msg=message, digestmod=SHA512)).hexdigest())
 
-        secure = {
+        secure_msg = {
                     "type"   : "secure",
                     "content": ciphered_b,
                     "HMAC"   : HMAC_msg,
         }
 
-        return json.dumps(secure) #string format
+        return json.dumps(secure_msg) #string format
 
     def sendResult(self, message):
         """Send an object to this client.

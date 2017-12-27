@@ -97,7 +97,7 @@ class ServerActions:
         """ Refresh keys and session
         """
         log(logging.INFO, colors.INFO + " Refreshing Keys" + colors.END)
-        client_pubkey = data['publickey']
+        client_pubkey = base64.b64encode(data['publickey'])
         client.modulus_prime = data['modulus_prime']
         client.primitive_root = data['primitive_root']
         client.client_pubNum = int(data['Client_pubNum'])
@@ -208,8 +208,8 @@ class ServerActions:
 
         if phase == 1:
             log(logging.INFO, colors.INFO + " Authenticating Credentials" + colors.END)
-            client.uuid = data['uuid']                      # username = uuid
-            client.id = self.registry.getId(data['uuid'])   # uuid -> traducao para ID
+            client.uuid = base64.b64decode(data['uuid'])                     # username = uuid
+            client.id = self.registry.getId(base64.b64decode(data['uuid']))   # uuid -> traducao para ID
             client.modulus_prime = data['modulus_prime']
             client.primitive_root = data['primitive_root']
             client.client_pubNum = int(data['Client_pubNum'])
@@ -386,8 +386,8 @@ class ServerActions:
                 json.dumps(data))
             client.sendResult({"error": "wrong message format"})
 
-        fromId = self.registry.getId((data['uuid'])) # uuid -> traducao para ID
-        msg = str(data['msg'])
+        fromId = self.registry.getId((base64.b64decode(data['uuid']))) # uuid -> traducao para ID
+        msg = str(base64.b64decode(data['msg']))
 
         if not self.registry.userExists(fromId):
             log(logging.ERROR,
@@ -413,9 +413,9 @@ class ServerActions:
                 json.dumps(data))
             client.sendResult({"error": "wrong request format"})
 
-        fromId = self.registry.getId((data["id"]))
-        msg = str(data['msg'])
-        receipt = str(data['receipt'])
+        fromId = self.registry.getId(base64.b64decode((data["id"])))
+        msg = str(base64.b64decode(data['msg']))
+        receipt = data['receipt']
 
         if not self.registry.messageWasRed(str(fromId), msg):
             log(logging.ERROR, "Unknown, or not yet red, message for \"receipt\" request " + json.dumps(data))
@@ -432,8 +432,8 @@ class ServerActions:
                 json.dumps(data))
             client.sendResult({"error": "wrong message format"})
         
-        fromId = self.registry.getId((data['id']))
-        msg = str(data["msg"])
+        fromId = self.registry.getId((base64.b64decode(data['id'])))
+        msg = base64.b64decode(data["msg"])
 
         if(not self.registry.copyExists(fromId, msg)):
             log(logging.ERROR, "Unknown message for \"status\" request: " + json.dumps(data))
