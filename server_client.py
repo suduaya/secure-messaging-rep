@@ -1,22 +1,18 @@
-import logging
 from log import *
-import json, base64
-import sys
-import random
+import json, base64, sys, random, logging
 from Crypto.Hash import SHA512, HMAC
 from Crypto.Random import random
 from Crypto.PublicKey import RSA
-from string import ascii_lowercase
 from Security_functions import Security
 from Crypto.Protocol.KDF import PBKDF1
-from Security_functions import Security
 
 security = Security()   # security module
 
 
 # Connection status
-CONNECTED = 1
-NOT_CONNECTED = 2
+NOT_CONNECTED   = 10000
+CONNECTING      = 20000
+CONNECTED       = 30000
 
 TERMINATOR = "\r\n"
 MAX_BUFSIZE = 64 * 1024
@@ -73,11 +69,14 @@ class Client:
 
         self.bufin += data
         reqs = self.bufin.split(TERMINATOR)
-        #print reqs
         self.bufin = reqs[-1]
         return reqs[:-1]
     
     def processSecure(self, message):
+        """Ciphering with symetric derivated session key
+            Secure Channel
+        """
+
         log(logging.INFO, colors.INFO + " Secure Response" + colors.END)
         # Derivated from Session Key
         kdf_key = security.kdf(str(self.sharedKey), self.salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())

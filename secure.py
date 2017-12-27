@@ -12,7 +12,7 @@ BlockSize = 16
 pad = lambda s: s + (BlockSize - len(s) % BlockSize) * chr(BlockSize - len(s) % BlockSize)
 unpad = lambda s : s[:-ord(s[len(s)-1:])]
 
-class Security:
+class Secure:
     def SHA256(self, message):
         return SHA256.new(message).digest()
         

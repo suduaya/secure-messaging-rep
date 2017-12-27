@@ -5,24 +5,24 @@ from server_registry import *
 from server_client import *
 from server import *
 import json
+import time
 import random
-from Security_functions import Security
 from Crypto.Hash import SHA512, HMAC
 from Crypto.Random import random
 from Crypto.PublicKey import RSA
 from string import ascii_lowercase
-from Security_functions import Security
+from secure import Secure
 from Crypto.Protocol.KDF import PBKDF1
 from citizencard import citizencard
 
 
 cc = citizencard()
-security = Security()
+secure = Secure()
 
 HOST = ""   # All available interfaces
 PORT = 8080  # The server port
 
-get_pubNum = lambda x,y,z: int(pow(x,y,z))
+pubNum = lambda x,y,z: int(pow(x,y,z))
 
 def privateNumber():
     secret = int(random.randint(0,100))
@@ -59,29 +59,7 @@ class ServerActions:
         self.registry = ServerRegistry()
 
         # Par de Chaves Assimetricas
-        self.pubKey, self.privKey = security.get_keys()
-
-    '''def hybrid(self, operation, data, data_key=None):
-        """
-        Function used to cipher/decipher requests, generates symetric 
-        key and ciphers with pubKey of dst or deciphers with my privKey
-        """
-        if operation == 'cipher':
-            symKey = security.get_symmetricKey(256)
-            instance = RSA.importKey(data_key)
-
-            a = security.AES(message=data, key=symKey)
-            b = security.rsaCipher(message=symKey, key=instance)
-
-            return a, b  # data ciphered with symKey, symKey ciphered with server pubKey
-
-        if operation == 'decipher':
-            instance = RSA.importKey(self.privKey)
-
-            b = security.rsaDecipher(message=data_key, key=instance)
-            a = security.D_AES(symKey=b, message=data)
-            
-            return a'''
+        self.pubKey, self.privKey = secure.get_keys()
 
     def handleRequest(self, s, request, client):
         """Handle a request from a client socket.
@@ -116,6 +94,8 @@ class ServerActions:
 
 
     def processRefresh(self, data, client):
+        """ Refresh keys and session
+        """
         log(logging.INFO, colors.INFO + " Refreshing Keys" + colors.END)
         client_pubkey = data['publickey']
         client.modulus_prime = data['modulus_prime']
@@ -148,16 +128,15 @@ class ServerActions:
         """
         print "\n"
         log(logging.INFO, colors.INFO + " Secure Request " + colors.WARNING + "     username: " + colors.END+ client.uuid +colors.WARNING + colors.END)
-        client.client_pubKey = base64.b64decode(data['client_pubkey'])
         content = base64.b64decode(data['content'])
         client.salt = base64.b64decode(data['salt'])
         HMAC_msg = base64.b64decode(data['HMAC'])
 
         # Compute Derivated key
-        kdf_key = security.kdf(str(client.sharedKey), client.salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
+        kdf_key = secure.kdf(str(client.sharedKey), client.salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
         
         # Decipher Request
-        dataFinal = security.D_AES(message= content, symKey= kdf_key)
+        dataFinal = secure.D_AES(message= content, symKey= kdf_key)
         req = json.loads(dataFinal)
 
         # Create HMAC
@@ -176,7 +155,7 @@ class ServerActions:
         return
 
     def processCreate(self, data, client):
-        log(logging.DEBUG, "%s" % json.dumps(data))
+        log(logging.INFO, colors.INFO + " Creating New Account" + colors.END)
 
         if 'uuid' not in data.keys():
             log(logging.ERROR, "No \"uuid\" field in \"create\" message: " +
@@ -184,26 +163,47 @@ class ServerActions:
             client.sendResult({"error": "wrong message format"})
             return
 
-        uuid = data['uuid'] # username
-        publicKey = data['Client_pubKey']
+        uuid = data['uuid']                 # username
+        publicKey = data['Client_pubKey']   # user publicKey
 
         if self.registry.userExists(uuid):
             log(logging.ERROR, colors.ERROR + "User already exists" + colors.END)
-            client.sendResult({"error": "User already exists"})
+            client.sendResult({"error": "                User already exists"})
             return
 
         if self.registry.userDirExists(uuid):
             log(logging.ERROR, colors.ERROR + "User already exists" + colors.END)
-            client.sendResult({"error": "User already exists"})
+            client.sendResult({"error": "                User already exists"})
             return
+
+        user_cert = data['auth_certificate']        # authentication certificate
+
+        # validade certificado
+        if not cc.retrieveStatus(cert= user_cert, mode="AUTHENTICATION"):
+            log(logging.ERROR, colors.ERROR + "Your Certificate is revoked!" + colors.END) 
+            return
+        log(logging.ERROR, colors.VALID + "Certificate Not Revoked" + colors.END) 
+
+        # registar envio
+        timestamp = str(int(time.time() * 1000))
+
+        # validade assinatura
+        if not cc.signatureValidity(cert=user_cert, timestamp=timestamp):
+            log(logging.ERROR, colors.ERROR + "Your Signature isn't valid!" + colors.END) 
+            return
+        log(logging.ERROR, colors.VALID + "Valid Signature. Current Date: " + str(time.ctime(int(timestamp) / 1000)) + colors.END) 
+
 
         # Adiciona novo user
         me = self.registry.addUser(data)
+        log(logging.INFO, colors.INFO + " User Added Sucessfully" + colors.END)
         client.id = me.id
         client.sendResult({"resultCreate": me.id})
 
 
     def processAuthentication(self, data, client):
+        """ Processo de Autenticacao
+        """
         phase = int(data['phase'])
 
         if phase == 1:
@@ -216,21 +216,21 @@ class ServerActions:
             client.svPrivNum = privateNumber()
             passphrase = data['passphrase']
             
-
+            # check username
             if not self.registry.userDirExists(client.uuid):
                 log(logging.ERROR, colors.ERROR +"Invalid Username" + colors.END)
-                client.sendResult({"error": "Invalid Username!"})
+                client.sendResult({"error": "                Invalid Username!"})
                 return
 
             # check password
             if not self.registry.checkPassphrase(client.uuid, passphrase):
                 log(logging.ERROR, colors.ERROR +"Authentication failed! Wrong passphrase!"+colors.END)
-                client.sendResult({"error": "Wrong password!"})
+                client.sendResult({"error": "                Wrong password!"})
                 return
             log(logging.DEBUG,colors.VALID + "Correct Passphrase" + colors.END)
             
             # Compute Shared Key
-            client.svPubNum = int(pow(client.primitive_root, client.svPrivNum, client.modulus_prime))
+            client.svPubNum = pubNum(client.primitive_root, client.svPrivNum, client.modulus_prime)
             
             client.sendResult({"resultDH":{
                                             "Server_pubNum" : client.svPubNum,
@@ -243,25 +243,29 @@ class ServerActions:
 
         if phase == 3:
             log(logging.INFO, colors.INFO + " Authenticating Challenge" + colors.END)
+            # passphrase
             signed_passphrase = base64.b64decode(data['signed_passphrase'])
-
             passphrase = data['passphrase']
 
-            # double check password 
+            # double check password/passphrase
             if not self.registry.checkPassphrase(client.uuid, passphrase):
                 log(logging.ERROR, colors.ERROR +"Authentication failed! Wrong passphrase!"+colors.END)
-                client.sendResult({"error": "Wrong password!"})
+                client.sendResult({"error": "                Wrong password!"})
                 return
 
             # signature validity
             timestamp= str(int(time.time() * 1000))
             user_cert = self.registry.getUserCertificate(uuid= client.uuid ,mode='AUTHENTICATION')
+
             if user_cert != None:
                 if not cc.verify(cert=user_cert, data= base64.b64decode(passphrase), sign= signed_passphrase) and cc.signatureValidity(cert=user_cert, timestamp=timestamp):
+                    # Not valid
                     log(logging.ERROR, colors.ERROR +"Invalid Signature!"+colors.END)
-                    client.sendResult({"error": "Invalid Signature!"})
+                    client.sendResult({"error": "                Invalid Signature!"})
                     return
+                # Valid Signature
                 log(logging.DEBUG,colors.VALID + "Valid Signature" + colors.END)
+            # Valid Challende
             log(logging.DEBUG,colors.VALID + "Challenge Validated" + colors.END)
 
             # shared key
@@ -282,10 +286,9 @@ class ServerActions:
         
 
     def processList(self, data, client):
-        #log(logging.DEBUG, "%s" % json.dumps(data))
         log(logging.INFO, colors.INFO + " Listing Users" + colors.END)
 
-        user = 0  # 0 means all users
+        user = 0
         userStr = "all users"
         if 'id' in data.keys():
             user = int(data['id'])
@@ -299,10 +302,9 @@ class ServerActions:
 
 
     def processSync(self, data, client):
-        #log(logging.DEBUG, "%s" % json.dumps(data))
         log(logging.INFO, colors.INFO + " Synchronizing User's related data" + colors.END)
 
-        user = 0  # 0 means all users
+        user = 0
         userStr = "all users"
         if 'id' in data.keys():
             user = int(data['id'])
@@ -329,7 +331,6 @@ class ServerActions:
             {"resultNew": self.registry.userNewMessages(user)})
 
     def processAll(self, data, client):
-        log(logging.DEBUG, "%s" % json.dumps(data))
         log(logging.INFO, colors.INFO + " Message Box" + colors.END)
 
         user = -1
@@ -347,7 +348,6 @@ class ServerActions:
         client.sendResult({"resultAll": [self.registry.userAllMessages(user), self.registry.userSentMessages(user)]})
 
     def processSend(self, data, client):
-        #log(logging.DEBUG, "%s" % json.dumps(data))
         log(logging.INFO, colors.INFO + "Sending Message" + colors.END)
 
         if not set(data.keys()).issuperset(set({'src', 'dst', 'msg', 'msg'})):
@@ -375,11 +375,10 @@ class ServerActions:
 
         # Save message and copy
         response = self.registry.sendMessage(srcId, dstId, msg, copy)
-        log(logging.INFO, colors.VALID + "Message Sent" + colors.END)
+        log(logging.INFO, colors.VALID + "Message Sent Sucessfully" + colors.END)
         client.sendResult({"resultSend": response})
 
     def processRecv(self, data, client):
-        log(logging.DEBUG, "%s" % json.dumps(data))
         log(logging.INFO, colors.INFO + "Receiving Message" + colors.END)
 
         if not set({'uuid', 'msg'}).issubset(set(data.keys())):
@@ -407,7 +406,6 @@ class ServerActions:
         client.sendResult({"resultRecv": response})
 
     def processReceipt(self, data, client):
-        #log(logging.DEBUG, "%s" % json.dumps(data))
         log(logging.INFO, colors.INFO + "New Receipt" + colors.END)
 
         if not set({'id', 'msg', 'receipt'}).issubset(set(data.keys())):
@@ -423,11 +421,10 @@ class ServerActions:
             log(logging.ERROR, "Unknown, or not yet red, message for \"receipt\" request " + json.dumps(data))
             client.sendResult({"error": "wrong parameters"})
             return
-
+        log(logging.INFO, colors.INFO + " Receipt Stored" + colors.END)
         self.registry.storeReceipt(fromId, msg, receipt)
 
     def processStatus(self, data, client):
-        log(logging.DEBUG, "%s" % json.dumps(data))
         log(logging.INFO, colors.INFO + " Message Status" + colors.END)
 
         if not set({'id', 'msg'}).issubset(set(data.keys())):

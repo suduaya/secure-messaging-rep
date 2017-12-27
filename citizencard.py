@@ -11,14 +11,6 @@ from Crypto.Signature import PKCS1_v1_5
 from Crypto.PublicKey import RSA
 from Crypto.Hash import SHA256
 
-#labels auth
-certLabel = 'CITIZEN AUTHENTICATION CERTIFICATE'
-KEY_LABEL = 'CITIZEN AUTHENTICATION KEY'
-
-#labels sign
-certLabel2 = 'CITIZEN SIGNATURE CERTIFICATE'
-KEY_LABEL2 = 'CITIZEN SIGNATURE KEY'
-
 class citizencard():
     def certificate(self, mode):
         slot = 0
@@ -186,10 +178,10 @@ class citizencard():
 
             # None se nenhum foi revoked
             if store_ctx.verify_certificate() is None:
-                # print worked wow
+                #print 'worked wow'
                 return True
         except:
-            # print didnt worked wow
+            #print 'didnt worked wow'
             return False
 
         return False

@@ -6,8 +6,6 @@ import re
 import json
 import time
 
-sys.tracebacklimit = 30
-
 MBOXES_PATH = "mboxes"
 RECEIPTS_PATH = "receipts"
 DESC_FILENAME = "description"
@@ -108,8 +106,6 @@ class ServerRegistry:
         if 'type' in description.keys():
             del description['type']
 
-        log(logging.DEBUG, "add user \"%s\": %s" % (uid, description))
-
         user = UserDescription(uid, description)
         self.users[uid] = user
 
@@ -164,7 +160,6 @@ class ServerRegistry:
                              'id': k,
                              'description' : self.users[k].description,
                              }) # retorna id, not uuid
-            #userList.append(self.users[k].description)
 
         return userList
 
