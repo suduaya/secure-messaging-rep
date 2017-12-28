@@ -17,9 +17,7 @@ class Secure:
         return SHA256.new(message).digest()
         
     ###############################################SYMMETRIC############################################################
-    def AES(self, message, key):
-        #key = self.get_symmetricKey(keyBits)
-        #iv = Random.new().read(AES.block_size)  # initial vector to sum to 1 text block
+    def AES(self, message, key):    # iv vai encapsulado
         message_b = bytes(message)
         iv = Random.new().read(AES.block_size)
         cipher = AES.new(key, AES.MODE_CBC, iv)
@@ -28,20 +26,11 @@ class Secure:
 
     def get_symmetricKey(self, bits):
         bits = int(bits)
-        if bits == 32:
-            key = bytes(''.join(random.choice(ascii_lowercase) for i in range(4)))  # random string 64 bits
-            return key
-        if bits == 64:
-            key = bytes(''.join(random.choice(ascii_lowercase) for i in range(8)))  # random string 64 bits
-            return key
         if bits == 128:
-            key = bytes(''.join(random.choice(ascii_lowercase) for i in range(16)))  # random string 128 bits no parity bit 3*5+1
-            return key
-        if bits == 192:
-            key = bytes(''.join(random.choice(ascii_lowercase) for i in range(24)))  # random string 192 bits
-            return key
+            key = bytes(''.join(random.choice(ascii_lowercase) for i in range(16)))
+
         if bits == 256:
-            key = bytes(''.join(random.choice(ascii_lowercase) for i in range(32)))  # random string 256 bits
+            key = bytes(''.join(random.choice(ascii_lowercase) for i in range(32)))
             return key
 
     def D_AES(self, symKey, message):

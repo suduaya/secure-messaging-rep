@@ -987,6 +987,7 @@ class Client:
                     salt = secure.get_symmetricKey(256)
                     self.salt = salt
                     # Gerar derivada baseada no salt
+                    # 32bytes = 256 bits
                     kdf_key = secure.kdf(str(self.sharedKey), self.salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
                     self.kdf_key = kdf_key
 
@@ -1002,7 +1003,7 @@ class Client:
                             "salt"          : base64.b64encode(salt),
                             "HMAC"          : base64.b64encode(HMAC_msg),
                         }
-
+                        
                     self.ss.send(json.dumps(data)+TERMINATOR)
                 except Exception:
                     pass
