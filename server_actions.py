@@ -140,11 +140,11 @@ class ServerActions:
         log(logging.INFO, colors.INFO + " Expected Message!" + colors.END + " SEQ CODE: " + str(client.nextRequest-1))
         log(logging.INFO, colors.INFO + " Secure Request " + colors.WARNING + "     username: " + colors.END+ client.uuid +colors.WARNING + colors.END)
         content = base64.b64decode(data['content'])
-        client.salt = base64.b64decode(data['salt'])
+        salt = base64.b64decode(data['salt'])
         HMAC_msg = base64.b64decode(data['HMAC'])
 
         # Compute Derivated key
-        kdf_key = secure.kdf(str(client.sharedKey), client.salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
+        kdf_key = secure.kdf(str(client.sharedKey), salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
         
         # Decipher Request
         dataFinal = secure.D_AES(message= content, symKey= kdf_key)

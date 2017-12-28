@@ -38,7 +38,6 @@ class Client:
         self.name = None
         self.id = None
         self.uuid = None
-        self.salt = None
         self.modulus_prime = None
         self.primitive_root = None
         self.client_pubKey = None
@@ -80,7 +79,8 @@ class Client:
 
         log(logging.INFO, colors.INFO + " Secure Response" + colors.END)
         # Derivated from Session Key
-        kdf_key = secure.kdf(str(self.sharedKey), self.salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
+        salt = secure.get_symmetricKey(256)
+        kdf_key = secure.kdf(str(self.sharedKey), salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
 
         # Ciphering message
         ciphered =  secure.AES(message, kdf_key)
@@ -96,6 +96,7 @@ class Client:
                     "content": ciphered_b,  #base64
                     "HMAC"   : HMAC_msg,    #base64
                     "msgControl" : msgControl,
+                    "salt": base64.b64encode(salt),
         }
 
         return json.dumps(secure_msg) #string format

@@ -85,7 +85,6 @@ class Client:
         self.modulus_prime = MODULUS_PRIME
         self.primitive_root = PRIMITIVE_ROOT
         self.state = NOT_CONNECTED
-        self.salt = None
         self.sharedKey = None
 
         # Flags auxiliares
@@ -939,8 +938,9 @@ class Client:
         Decifrar com chave deriada de sessao, secure channel e verificacao de integridade
         """
         req = json.loads(req)
-        salt = self.salt
-        kdf_key = self.kdf_key
+        salt = base64.b64decode(req['salt'])
+        kdf_key = secure.kdf(str(self.sharedKey), salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
+        
         content = req['content'] #mensagem
         content_decoded = base64.b64decode(content)
         msgControl = base64.b64decode(req['msgControl'])
@@ -994,12 +994,11 @@ class Client:
                     # Calcular nova chave derivada
                     # salt
                     salt = secure.get_symmetricKey(256)
-                    self.salt = salt
+                    
                     # Gerar derivada baseada no salt
                     # 32bytes = 256 bits
-                    kdf_key = secure.kdf(str(self.sharedKey), self.salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
-                    self.kdf_key = kdf_key
-
+                    kdf_key = secure.kdf(str(self.sharedKey), salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
+                    
                     # Cifrar conteudo
                     sending =  secure.AES(message, kdf_key)
 
