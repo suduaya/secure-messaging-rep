@@ -1007,7 +1007,6 @@ class Client:
                     HMAC_msg = (HMAC.new(key=kdf_key, msg=message, digestmod=SHA512)).hexdigest()
 
                     # resposta a ser esperada pelo server
-                    
                     # flag de controlo
                     msgControl = secure.SHA256(str(self.nextRequest))
                     self.nextRequest += 1
