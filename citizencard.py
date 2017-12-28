@@ -6,7 +6,7 @@ import sys
 import OpenSSL
 import datetime, time
 import os, urllib, shutil
-import base64
+import base64, getpass
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.PublicKey import RSA
 from Crypto.Hash import SHA256
@@ -56,6 +56,16 @@ class citizencard():
             return None
 
         return pem, session    # certificado e sessao
+
+    '''def loginSession(self, session):
+        pin = getpass.getpass("PIN: ")
+        try:
+            session.login(pin)
+            return True
+        except:
+            print "Wrong PIN!"
+            return False
+        return False'''
 
     def getAuthenticationIssuers(self, cert, mode):  # EC Number e CC number
         obj = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, cert)

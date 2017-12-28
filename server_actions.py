@@ -61,6 +61,7 @@ class ServerActions:
         # Par de Chaves Assimetricas
         self.pubKey, self.privKey = secure.get_keys()
 
+    
     def handleRequest(self, s, request, client):
         """Handle a request from a client socket.
         """
@@ -83,7 +84,7 @@ class ServerActions:
                 return
 
             if req['type'] in self.messageTypes:
-                self.messageTypes[req['type']](req, client)
+                self.messageTypes[req['type']](req, client, None) # secure
             else:
                 log(logging.ERROR, "Invalid message type: " +
                     str(req['type']) + " Should be one of: " + str(self.messageTypes.keys()))
@@ -93,7 +94,7 @@ class ServerActions:
             logging.exception("Could not handle request")
 
 
-    def processRefresh(self, data, client):
+    def processRefresh(self, data, client, msgControl):
         """ Refresh keys and session
         """
         log(logging.INFO, colors.INFO + " Refreshing Keys" + colors.END)
@@ -119,14 +120,24 @@ class ServerActions:
                                         "Server_pubNum" : client.svPubNum,
                                     },
                             "server_pubkey" : self.pubKey,
-                        })
+                        }, msgControl)
 
         client.sharedKey = new_sharedKey
 
-    def processSecure(self, data, client):
+    def processSecure(self, data, client, msgControl=None):
         """ Process Message with type field "secure"
         """
+        msgControl = data['msgControl']
+        
+        # flag de controlo
+        if not base64.b64decode(msgControl) == secure.SHA256(str(client.nextRequest)):
+            log(logging.INFO, colors.ERROR + "This messages is not the answer for the previews request." + colors.END)
+            return
+
+        # resposta a ser esperada pelo server
+        client.nextRequest += 1 
         print "\n"
+        log(logging.INFO, colors.INFO + " Expected Message!" + colors.END + " SEQ CODE: " + str(client.nextRequest-1))
         log(logging.INFO, colors.INFO + " Secure Request " + colors.WARNING + "     username: " + colors.END+ client.uuid +colors.WARNING + colors.END)
         content = base64.b64decode(data['content'])
         client.salt = base64.b64decode(data['salt'])
@@ -151,16 +162,16 @@ class ServerActions:
 
         # Handling Request
         if req['type'] in dataFinal:
-                self.messageTypes[req['type']](req, client)
+                self.messageTypes[req['type']](req, client, msgControl)
         return
 
-    def processCreate(self, data, client):
+    def processCreate(self, data, client, msgControl):
         log(logging.INFO, colors.INFO + " Creating New Account" + colors.END)
 
         if 'uuid' not in data.keys():
             log(logging.ERROR, "No \"uuid\" field in \"create\" message: " +
                 json.dumps(data))
-            client.sendResult({"error": "wrong message format"})
+            client.sendResult({"error": "wrong message format"}, msgControl)
             return
 
         uuid = data['uuid']                 # username
@@ -168,12 +179,12 @@ class ServerActions:
 
         if self.registry.userExists(uuid):
             log(logging.ERROR, colors.ERROR + "User already exists" + colors.END)
-            client.sendResult({"error": "                User already exists"})
+            client.sendResult({"error": "                User already exists"}, msgControl)
             return
 
         if self.registry.userDirExists(uuid):
             log(logging.ERROR, colors.ERROR + "User already exists" + colors.END)
-            client.sendResult({"error": "                User already exists"})
+            client.sendResult({"error": "                User already exists"}, msgControl)
             return
 
         user_cert = data['auth_certificate']        # authentication certificate
@@ -198,10 +209,10 @@ class ServerActions:
         me = self.registry.addUser(data)
         log(logging.INFO, colors.INFO + " User Added Sucessfully" + colors.END)
         client.id = me.id
-        client.sendResult({"resultCreate": me.id})
+        client.sendResult({"resultCreate": me.id}, msgControl)
 
 
-    def processAuthentication(self, data, client):
+    def processAuthentication(self, data, client, msgControl):
         """ Processo de Autenticacao
         """
         phase = int(data['phase'])
@@ -219,13 +230,13 @@ class ServerActions:
             # check username
             if not self.registry.userDirExists(client.uuid):
                 log(logging.ERROR, colors.ERROR +"Invalid Username" + colors.END)
-                client.sendResult({"error": "                Invalid Username!"})
+                client.sendResult({"error": "                Invalid Username!"}, msgControl)
                 return
 
             # check password
             if not self.registry.checkPassphrase(client.uuid, passphrase):
                 log(logging.ERROR, colors.ERROR +"Authentication failed! Wrong passphrase!"+colors.END)
-                client.sendResult({"error": "                Wrong password!"})
+                client.sendResult({"error": "                Wrong password!"}, msgControl)
                 return
             log(logging.DEBUG,colors.VALID + "Correct Passphrase" + colors.END)
             
@@ -239,7 +250,7 @@ class ServerActions:
                                 "server_pubkey" : self.pubKey,
                                 "id": client.id,
                                 "name": self.registry.users[client.id].description["name"]
-                            })
+                            }, msgControl)
 
         if phase == 3:
             log(logging.INFO, colors.INFO + " Authenticating Challenge" + colors.END)
@@ -250,7 +261,7 @@ class ServerActions:
             # double check password/passphrase
             if not self.registry.checkPassphrase(client.uuid, passphrase):
                 log(logging.ERROR, colors.ERROR +"Authentication failed! Wrong passphrase!"+colors.END)
-                client.sendResult({"error": "                Wrong password!"})
+                client.sendResult({"error": "                Wrong password!"}, msgControl)
                 return
 
             # signature validity
@@ -261,7 +272,7 @@ class ServerActions:
                 if not cc.verify(cert=user_cert, data= base64.b64decode(passphrase), sign= signed_passphrase) and cc.signatureValidity(cert=user_cert, timestamp=timestamp):
                     # Not valid
                     log(logging.ERROR, colors.ERROR +"Invalid Signature!"+colors.END)
-                    client.sendResult({"error": "                Invalid Signature!"})
+                    client.sendResult({"error": "                Invalid Signature!"}, msgControl)
                     return
                 # Valid Signature
                 log(logging.DEBUG,colors.VALID + "Valid Signature" + colors.END)
@@ -279,13 +290,13 @@ class ServerActions:
             client.sendResult({"resultDH":{
                                             "phase" : phase+1
                                         }
-                            })
+                            }, msgControl)
 
             # Change Client Status
             client.status = CONNECTED
         
 
-    def processList(self, data, client):
+    def processList(self, data, client, msgControl):
         log(logging.INFO, colors.INFO + " Listing Users" + colors.END)
 
         user = 0
@@ -298,10 +309,10 @@ class ServerActions:
 
         userList = self.registry.listUsers(user)
 
-        client.sendResult({"resultList": userList})
+        client.sendResult({"resultList": userList}, msgControl)
 
 
-    def processSync(self, data, client):
+    def processSync(self, data, client, msgControl):
         log(logging.INFO, colors.INFO + " Synchronizing User's related data" + colors.END)
 
         user = 0
@@ -312,9 +323,9 @@ class ServerActions:
 
         userList = self.registry.listUsers(user)
 
-        client.sendResult({"resultSync": userList})
+        client.sendResult({"resultSync": userList}, msgControl)
 
-    def processNew(self, data, client):
+    def processNew(self, data, client, msgControl):
         log(logging.DEBUG, "%s" % json.dumps(data))
 
         user = -1
@@ -324,14 +335,19 @@ class ServerActions:
         if user < 0:
             log(logging.ERROR,
                 "No valid \"id\" field in \"new\" message: " + json.dumps(data))
-            client.sendResult({"error": "wrong message format"})
+            client.sendResult({"error": "wrong message format"}, msgControl)
             return
 
         client.sendResult(
-            {"resultNew": self.registry.userNewMessages(user)})
+            {"resultNew": self.registry.userNewMessages(user)}, msgControl)
 
-    def processAll(self, data, client):
+    def processAll(self, data, client, msgControl):
         log(logging.INFO, colors.INFO + " Message Box" + colors.END)
+
+        if not client.uuid == data['uuid']:
+            log(logging.INFO, colors.ERROR + " Wrong Message Box Owner!" + colors.END)
+            return
+        log(logging.INFO, colors.INFO + " Correct Message Box Owner!" + colors.END)
 
         user = -1
 
@@ -342,18 +358,18 @@ class ServerActions:
         if user < 0:
             log(logging.ERROR,
                 "No valid \"id\" field in \"new\" message: " + json.dumps(data))
-            client.sendResult({"error": "wrong message format"})
+            client.sendResult({"error": "wrong message format"}, msgControl)
             return
 
-        client.sendResult({"resultAll": [self.registry.userAllMessages(user), self.registry.userSentMessages(user)]})
+        client.sendResult({"resultAll": [self.registry.userAllMessages(user), self.registry.userSentMessages(user)]}, msgControl)
 
-    def processSend(self, data, client):
+    def processSend(self, data, client, msgControl):
         log(logging.INFO, colors.INFO + "Sending Message" + colors.END)
 
         if not set(data.keys()).issuperset(set({'src', 'dst', 'msg', 'msg'})):
             log(logging.ERROR,
                 "Badly formated \"send\" message: " + json.dumps(data))
-            client.sendResult({"error": "wrong message format"})
+            client.sendResult({"error": "wrong message format"}, msgControl)
 
         srcId = self.registry.getId((data['src']))  # uuid -> traducao para ID
         dstId = self.registry.getId((data['dst']))  # uuid -> traducao para ID
@@ -364,27 +380,27 @@ class ServerActions:
         if not self.registry.userExists(srcId):
             log(logging.ERROR,
                 "Unknown source id for \"send\" message: " + json.dumps(data))
-            client.sendResult({"error": "wrong parameters"})
+            client.sendResult({"error": "wrong parameters"}, msgControl)
             return
 
         if not self.registry.userExists(dstId):
             log(logging.ERROR,
                 "Unknown destination id for \"send\" message: " + json.dumps(data))
-            client.sendResult({"error": "wrong parameters"})
+            client.sendResult({"error": "wrong parameters"}, msgControl)
             return
 
         # Save message and copy
         response = self.registry.sendMessage(srcId, dstId, msg, copy)
         log(logging.INFO, colors.VALID + "Message Sent Sucessfully" + colors.END)
-        client.sendResult({"resultSend": response})
+        client.sendResult({"resultSend": response}, msgControl)
 
-    def processRecv(self, data, client):
+    def processRecv(self, data, client, msgControl):
         log(logging.INFO, colors.INFO + "Receiving Message" + colors.END)
 
         if not set({'uuid', 'msg'}).issubset(set(data.keys())):
             log(logging.ERROR, "Badly formated \"recv\" message: " +
                 json.dumps(data))
-            client.sendResult({"error": "wrong message format"})
+            client.sendResult({"error": "wrong message format"}, msgControl)
 
         fromId = self.registry.getId((base64.b64decode(data['uuid']))) # uuid -> traducao para ID
         msg = str(base64.b64decode(data['msg']))
@@ -392,26 +408,26 @@ class ServerActions:
         if not self.registry.userExists(fromId):
             log(logging.ERROR,
                 "Unknown source id for \"recv\" message: " + json.dumps(data))
-            client.sendResult({"error": "wrong parameters"})
+            client.sendResult({"error": "wrong parameters"}, msgControl)
             return
 
         if not self.registry.messageExists(fromId, msg):
             log(logging.ERROR,
                 "Unknown source msg for \"recv\" message: " + json.dumps(data))
-            client.sendResult({"error": "wrong parameters"})
+            client.sendResult({"error": "wrong parameters"}, msgControl)
             return
 
         # Read message
         response = self.registry.recvMessage(fromId, msg)
-        client.sendResult({"resultRecv": response})
+        client.sendResult({"resultRecv": response}, msgControl)
 
-    def processReceipt(self, data, client):
+    def processReceipt(self, data, client, msgControl):
         log(logging.INFO, colors.INFO + "New Receipt" + colors.END)
 
         if not set({'id', 'msg', 'receipt'}).issubset(set(data.keys())):
             log(logging.ERROR, "Badly formated \"receipt\" message: " +
                 json.dumps(data))
-            client.sendResult({"error": "wrong request format"})
+            client.sendResult({"error": "wrong request format"}, msgControl)
 
         fromId = self.registry.getId(base64.b64decode((data["id"])))
         msg = str(base64.b64decode(data['msg']))
@@ -419,26 +435,26 @@ class ServerActions:
 
         if not self.registry.messageWasRed(str(fromId), msg):
             log(logging.ERROR, "Unknown, or not yet red, message for \"receipt\" request " + json.dumps(data))
-            client.sendResult({"error": "wrong parameters"})
+            client.sendResult({"error": "wrong parameters"}, msgControl)
             return
         log(logging.INFO, colors.INFO + " Receipt Stored" + colors.END)
         self.registry.storeReceipt(fromId, msg, receipt)
 
-    def processStatus(self, data, client):
+    def processStatus(self, data, client, msgControl):
         log(logging.INFO, colors.INFO + " Message Status" + colors.END)
 
         if not set({'id', 'msg'}).issubset(set(data.keys())):
             log(logging.ERROR, "Badly formated \"status\" message: " +
                 json.dumps(data))
-            client.sendResult({"error": "wrong message format"})
+            client.sendResult({"error": "wrong message format"}, msgControl)
         
         fromId = self.registry.getId((base64.b64decode(data['id'])))
         msg = base64.b64decode(data["msg"])
 
         if(not self.registry.copyExists(fromId, msg)):
             log(logging.ERROR, "Unknown message for \"status\" request: " + json.dumps(data))
-            client.sendResult({"error", "wrong parameters"})
+            client.sendResult({"error", "wrong parameters"}, msgControl)
             return
 
         response = self.registry.getReceipts(fromId, msg)
-        client.sendResult({"resultStatus": response, "id": msg})
+        client.sendResult({"resultStatus": response, "id": msg}, msgControl)

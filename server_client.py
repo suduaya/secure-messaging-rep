@@ -47,6 +47,7 @@ class Client:
         self.svPrivNum = None
         self.svPubNum = None
         self.status = None
+        self.nextRequest = 0
 
     def __str__(self):
         """ Converts object into string.
@@ -72,7 +73,7 @@ class Client:
         self.bufin = reqs[-1]
         return reqs[:-1]
     
-    def processSecure(self, message):
+    def processSecure(self, message, msgControl):
         """Ciphering with symetric derivated session key
             Secure Channel
         """
@@ -92,13 +93,14 @@ class Client:
 
         secure_msg = {
                     "type"   : "secure",
-                    "content": ciphered_b,
-                    "HMAC"   : HMAC_msg,
+                    "content": ciphered_b,  #base64
+                    "HMAC"   : HMAC_msg,    #base64
+                    "msgControl" : msgControl,
         }
 
         return json.dumps(secure_msg) #string format
 
-    def sendResult(self, message):
+    def sendResult(self, message, msgControl):
         """Send an object to this client.
         """
         try:
@@ -109,7 +111,7 @@ class Client:
             if self.status == CONNECTED:
                 if isinstance(message, dict):
                     message =  json.dumps(message)
-                    sending = self.processSecure(message)
+                    sending = self.processSecure(message, msgControl)
 
                 self.bufout += sending + "\n\n"
 

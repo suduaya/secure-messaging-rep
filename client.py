@@ -89,6 +89,8 @@ class Client:
         self.sharedKey = None
 
         # Flags auxiliares
+        self.requestBuffer = []
+        self.nextRequest = 0
         self.to_receipt = False
         self.requests = 0
         self.requestsNumber = randint(10, 20)
@@ -691,16 +693,18 @@ class Client:
                             return
 
                         # Assinar
+                        #if cc.loginSession(self.session):
                         signed_passphrase, cleartext = cc.sign(data=passphrase, session=self.session, mode="AUTHENTICATION")
+
+                        data = {
+                                "type" : "dh",
+                                "phase" : int(phase)+1,
+                                "passphrase" : base64.b64encode(passphrase),
+                                "signed_passphrase" : base64.b64encode(signed_passphrase),
+                        }
+                        self.send(data)
                     except:
                         return
-                    data = {
-                            "type" : "dh",
-                            "phase" : int(phase)+1,
-                            "passphrase" : base64.b64encode(passphrase),
-                            "signed_passphrase" : base64.b64encode(signed_passphrase),
-                    }
-                    self.send(data)
 
                 if phase == 4:
                     # load keys and data registered on server(id, name), passphrase is checked
@@ -939,6 +943,11 @@ class Client:
         kdf_key = self.kdf_key
         content = req['content'] #mensagem
         content_decoded = base64.b64decode(content)
+        msgControl = base64.b64decode(req['msgControl'])
+        
+        if not msgControl == self.requestBuffer[self.nextRequest-1]:
+            print colors.ERROR + "This messages is not the answer for the previews request." + colors.END 
+            return
 
         # Read HMAC
         HMAC_msg = base64.b64decode(req['HMAC'])
@@ -996,12 +1005,23 @@ class Client:
 
                     # Gerar HMAC (mensagem, derivated key)
                     HMAC_msg = (HMAC.new(key=kdf_key, msg=message, digestmod=SHA512)).hexdigest()
+
+                    # resposta a ser esperada pelo server
+                    
+                    # flag de controlo
+                    msgControl = secure.SHA256(str(self.nextRequest))
+                    self.nextRequest += 1
+
+                    # buffer mensagens
+                    self.requestBuffer.append(msgControl)
+
                     # Encapsulamento
                     data = {
                             "type"          : "secure",
                             "content"       : base64.b64encode(sending),
                             "salt"          : base64.b64encode(salt),
                             "HMAC"          : base64.b64encode(HMAC_msg),
+                            "msgControl"    : base64.b64encode(msgControl),
                         }
                         
                     self.ss.send(json.dumps(data)+TERMINATOR)
