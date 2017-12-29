@@ -5,7 +5,6 @@ from server_registry import *
 from server_client import *
 from server import *
 import json
-import time
 import random
 from Crypto.Hash import SHA512, HMAC
 from Crypto.Random import random

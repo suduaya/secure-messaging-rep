@@ -79,7 +79,7 @@ class Client:
 
         log(logging.INFO, colors.INFO + " Secure Response" + colors.END)
         # Derivated from Session Key
-        salt = secure.get_symmetricKey(256)
+        salt = secure.symmetricKey(256)
         kdf_key = secure.kdf(str(self.sharedKey), salt, 32, 4096, lambda p, s: HMAC.new(p, s, SHA512).digest())
 
         # Ciphering message

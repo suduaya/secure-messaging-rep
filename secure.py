@@ -24,7 +24,7 @@ class Secure:
         msg = iv + cipher.encrypt(pad(message_b))
         return msg
 
-    def get_symmetricKey(self, bits):
+    def symmetricKey(self, bits):
         bits = int(bits)
         if bits == 128:
             key = bytes(''.join(random.choice(ascii_lowercase) for i in range(16)))

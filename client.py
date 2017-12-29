@@ -252,7 +252,7 @@ class Client:
             actual_timestamp= str(int(time.time() * 1000))
             self.loadKeys(actual_timestamp)
 
-            symKey = secure.get_symmetricKey(256)
+            symKey = secure.symmetricKey(256)
             instance = RSA.importKey(data_key)
 
             a = secure.AES(message=data, key=symKey)
@@ -998,7 +998,7 @@ class Client:
 
                     # Calcular nova chave derivada
                     # salt
-                    salt = secure.get_symmetricKey(256)
+                    salt = secure.symmetricKey(256)
                     
                     # Gerar derivada baseada no salt
                     # 32bytes = 256 bits
