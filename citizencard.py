@@ -188,7 +188,7 @@ class citizencard():
                 store.add_cert(cert)
 
             for crl in crl_list:   # adiciona todas as CRLs a lista
-                store.addcrl(crl)
+                store.add_crl(crl)
 
             # check de todos os certificados em todas as crls
             store.set_flags(flags=OpenSSL.crypto.X509StoreFlags.CRL_CHECK_ALL)
