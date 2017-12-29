@@ -79,7 +79,7 @@ class citizencard():
         if mode == 'SIGNATURE':
             filename = 'EC_de_Assinatura_Digital_Qualificada_do_Cartao_de_Cidadao_' + str(issuer[0][-4:]) + '.pem'
 
-        with open(os.path.join(os.getcwd(), '_certs', filename), 'r') as myfile:
+        with open(os.path.join(os.getcwd(), 'certificates', filename), 'r') as myfile:
             subca_obj = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, myfile.read())
 
         issuer_issuer = [x[1] for x in subca_obj.get_issuer().get_components() if x[0]=='CN']
@@ -103,15 +103,15 @@ class citizencard():
     def retrieveBase(self, obj, index):
         #print "getting Base"
         wget = obj.get_extension(index).get_data()
-        # exemplo: 0b0`?^?\?Zhttp://pki.cartaodecidadao.pt/publico/lrc/cc_sub-ec_cidadao_autenticacao_crl0009_p0001.crl
+        # exemplo: 0b0`?^?\?Zhttp://pki.cartaodecidadao.pt/publico/lrc/cc_sub-ec_cidadao_autenticacaocrl0009_p0001.crl
         # parse
         crl_name = wget.split('/')[-1]
 
-        # exemplo: cc_sub-ec_cidadao_autenticacao_crl0009_p0001.crl
+        # exemplo: cc_sub-ec_cidadao_autenticacaocrl0009_p0001.crl
         try:
             # Retrieve do CRL para o dir
             fileHandle = urllib.URLopener()
-            fileHandle.retrieve(wget[wget.index('http'):], os.getcwd() + '/_crl/' + crl_name)
+            fileHandle.retrieve(wget[wget.index('http'):], os.getcwd() + '/crl/' + crl_name)
         except Exception:
             pass
 
@@ -123,13 +123,18 @@ class citizencard():
         name = wget.split('/')[-1]
         try:
             fileHandle = urllib.URLopener()
-            fileHandle.retrieve(wget[wget.index('http'):], os.getcwd() + '/_crl/' + name)
+            fileHandle.retrieve(wget[wget.index('http'):], os.getcwd() + '/crl/' + name)
         except Exception:
             pass
 
     def retrieveStatus(self, cert, mode):     # mode AUTHENTICATION ou SIGNATURE
         issuers = self.getAuthenticationIssuers(cert, mode)    # tuplo
         crls = []
+        try:
+            # dir
+            os.makedirs(os.getcwd() + '/crl/')
+        except:
+            pass
         obj = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM,cert)
         crls.append(self.retrieveBase(obj, 5))          # crl do cert
         self.retrieveDelta(obj)                         # delta correspondente
@@ -147,7 +152,7 @@ class citizencard():
         certificates_trust_chain = []
 
         for pems in trust_chain:
-            f = open(os.path.join(os.getcwd(), '_certs', pems), 'r')
+            f = open(os.path.join(os.getcwd(), 'certificates', pems), 'r')
             obj = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, f.read())
             f.close()
             last_digits = pems[-7:-4]
@@ -166,9 +171,14 @@ class citizencard():
 
         crl_list = []
 
-        for filename in os.listdir(os.getcwd()+'/_crl/'):
-            f = open(os.getcwd() + '/_crl/' + filename, 'r')
-            crl_list.append(OpenSSL.crypto.load_crl(OpenSSL.crypto.FILETYPE_ASN1, f.read()))
+        for filename in os.listdir(os.getcwd()+'/crl/'):
+
+            f = open(os.getcwd() + '/crl/' + filename, 'r')
+            try:
+                crl_list.append(OpenSSL.crypto.loadcrl(OpenSSL.crypto.FILETYPE_ASN1, f.read()))
+            except:
+                # erro dos deuses do openssl
+                pass
             f.close()
         try:
             # Instanciar X509 Store
@@ -178,7 +188,7 @@ class citizencard():
                 store.add_cert(cert)
 
             for crl in crl_list:   # adiciona todas as CRLs a lista
-                store.add_crl(crl)
+                store.addcrl(crl)
 
             # check de todos os certificados em todas as crls
             store.set_flags(flags=OpenSSL.crypto.X509StoreFlags.CRL_CHECK_ALL)

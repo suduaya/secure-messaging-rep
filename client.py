@@ -342,6 +342,11 @@ class Client:
     # Create User Message Box
     def createUserMsgBox(self):
         if self.retrieveCCData():
+            try:
+                # dir
+                os.makedirs(os.getcwd() + '/clients/')
+            except:
+                pass
             #user details
             os.system('clear')
             print "                     -----------------------"
